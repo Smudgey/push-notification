@@ -17,5 +17,7 @@ dist
 /RUNNING_PID
 /.settings
 *.iws
-
+.cache
+.DS_Store
+**/*.DS_Store
     
