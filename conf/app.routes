@@ -1,1 +1,3 @@
 # microservice specific routes
+
+GET        /push/ping        uk.gov.hmrc.pushnotification.controller.Push.ping()
