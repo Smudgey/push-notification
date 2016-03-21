@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.avscanner.config
+package uk.gov.hmrc.pushnotification.config
 
 import play.api.Logger
 import uk.gov.hmrc.play.audit.http.HttpAuditing

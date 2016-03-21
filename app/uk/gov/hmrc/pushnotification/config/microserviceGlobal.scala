@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package uk.gov.hmrc.avscanner.config
+package uk.gov.hmrc.pushnotification.config
 
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
