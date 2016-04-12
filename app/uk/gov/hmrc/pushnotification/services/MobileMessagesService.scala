@@ -26,39 +26,27 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 
-trait pushnotificationService {
+trait MobileMessagesService {
   def ping()(implicit hc:HeaderCarrier): Future[Boolean]
 }
 
-trait LivepushnotificationService extends pushnotificationService {
+trait LiveMobileMessagesService extends MobileMessagesService with Auditor {
   def authConnector: AuthConnector
 
-  def audit(service:String, details:Map[String, String])(implicit hc:HeaderCarrier) = {
-    def auditResponse(): Unit = {
-      MicroserviceAuditConnector.sendEvent(
-        DataEvent("mobile-messages", "ServiceResponseSent",
-          tags = Map("transactionName" -> service),
-          detail = details))
-    }
-  }
-
-  def withAudit[T](service: String, details: Map[String, String])(func:Future[T])(implicit hc:HeaderCarrier) = {
-    audit(service, details) // No need to wait!
-    func
-  }
-
   def ping()(implicit hc:HeaderCarrier): Future[Boolean]
 
 }
 
-object SandboxpushnotificationService extends pushnotificationService with FileResource {
+object SandboxMobileMessagesService extends MobileMessagesService with FileResource {
 
   def ping()(implicit hc:HeaderCarrier): Future[Boolean] = Future.successful(true)
 
 }
 
-object LivepushnotificationService extends LivepushnotificationService {
+object LiveMobileMessagesService extends LiveMobileMessagesService {
   override val authConnector: AuthConnector = AuthConnector
+
+  val auditConnector: AuditConnector = MicroserviceAuditConnector
 
   def ping()(implicit hc:HeaderCarrier): Future[Boolean] = Future.successful(true)
 }
