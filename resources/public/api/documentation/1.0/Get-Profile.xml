@@ -1,0 +1,105 @@
+<endpoint>
+  <name>Get Profile</name>
+  <description>This endpoint retrieves the tax summary.</description>
+  <section id="resource">
+    <title>Resource</title>
+    <resource>GET /:nino/tax-summary/:year</resource>
+  </section>
+  <section id="path-parameters">
+    <title>Path Parameters</title>
+    <table>
+      <headings>
+        <cell>Name</cell>
+        <cell>Type</cell>
+        <cell>Example</cell>
+        <cell>Description</cell>
+      </headings>
+      <rows>
+        <row>
+          <cell><code>NINO</code></cell>
+          <cell><code>String</code></cell>
+          <cell><code>NS123456B</code></cell>
+          <cell>The NINO for the individual.</cell>
+        </row>
+        <row>
+          <cell><code>Year</code></cell>
+          <cell><code>Int</code></cell>
+          <cell><code>10</code></cell>
+          <cell>The tax-summary for the specific year.</cell>
+        </row>
+      </rows>
+    </table>
+  </section>
+  <section id="authorisation">
+    <title>Authorisation</title>
+    <authorisation>
+      <type>USER</type>
+      <scope>read:personal-income</scope>
+    </authorisation>
+  </section>
+  <section id="content-types">
+    <title>Accepted Media Types</title>
+    <list>
+      <item>
+        <code>application/vnd.hmrc.1.0+json</code>
+      </item>
+    </list>
+  </section>
+  <section id="sample-response">
+    <title>Response</title>
+    <httpStatus>200 (OK)</httpStatus>
+    <json><![CDATA[{
+        "nino":"KM569110B",
+        "version":1,
+        "workingTaxableTotal":0,
+        "actualTaxableTotal":0,
+        "remainingTaxFree":0,
+        "adjustedNetIncome":0
+}]]></json>
+    <table>
+      <headings>
+        <cell>Name</cell>
+        <cell>Type</cell>
+        <cell>Example</cell>
+        <cell>Description</cell>
+      </headings>
+      <rows>
+        <row>
+          <cell><code>NINO</code></cell>
+          <cell><code>String</code></cell>
+          <cell><code>KM569110B</code></cell>
+          <cell>An example NINO.</cell>
+        </row>
+        <row>
+          <cell><code>Version</code></cell>
+          <cell><code>Int</code></cell>
+          <cell><code>1</code></cell>
+          <cell>An example version number.</cell>
+        </row>
+        <row>
+          <cell><code>workingTaxableTotal</code></cell>
+          <cell><code>Int</code></cell>
+          <cell><code>1</code></cell>
+          <cell>An example version number.</cell>
+        </row>
+      </rows>
+    </table>
+  </section>
+  <section id="error-responses">
+    <title>Error Scenarios</title>
+    <table>
+      <headings>
+        <cell>Error Scenario</cell>
+        <cell>HTTP Status</cell>
+        <cell>Code</cell>
+      </headings>
+      <rows>
+        <row>
+          <cell>Invalid NINO</cell>
+          <cell><code>400 (Bad Request)</code></cell>
+          <cell><code>NINO_INVALID</code></cell>
+        </row>
+      </rows>
+    </table>
+  </section>
+</endpoint>

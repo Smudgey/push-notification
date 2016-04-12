@@ -1,0 +1,30 @@
+{
+  "scopes":[
+    {
+      "key":"read:customer-profile",
+      "name":"Execute customer-profile call",
+      "description":"Retrieve the customer profile"
+    }
+  ],
+  "api":{
+    "name":"customer-profile",
+    "description":"The API is used to retrieve customer profile information.",
+    "context":"customer-profile",
+    "versions":[
+      {
+        "version":"1.0",
+        "status":"PROTOTYPED",
+        "endpoints":[
+          {
+            "uriPattern":"/:nino/tax-summary/:year",
+            "endpointName":"Get Profile",
+            "method":"GET",
+            "authType":"USER",
+            "throttlingTier":"UNLIMITED",
+            "scope":"read:customer-profile"
+          }
+        ]
+      }
+    ]
+  }
+}
