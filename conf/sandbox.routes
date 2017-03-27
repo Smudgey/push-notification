@@ -1,3 +1,3 @@
 # microservice specific routes
 
-GET         /messages                                       uk.gov.hmrc.pushnotification.controllers.SandboxCustomerProfileController.ping()
+GET         /messages                                       uk.gov.hmrc.pushnotification.controllers.SandboxMobileMessagesController.ping()

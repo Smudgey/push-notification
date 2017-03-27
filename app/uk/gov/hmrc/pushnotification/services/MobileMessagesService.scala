@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 HM Revenue & Customs
+ * Copyright 2017 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@
 package uk.gov.hmrc.pushnotification.services
 
 import uk.gov.hmrc.api.sandbox.FileResource
+import uk.gov.hmrc.api.service.Auditor
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector._
-import uk.gov.hmrc.play.audit.model.DataEvent
 import uk.gov.hmrc.play.http.HeaderCarrier
 
 import scala.concurrent.ExecutionContext.Implicits.global
