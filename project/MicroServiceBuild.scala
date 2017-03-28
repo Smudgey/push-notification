@@ -39,6 +39,7 @@ private object AppDependencies {
   private val wireMockVersion = "2.3.1"
   private val hmrcTestVersion = "2.2.0"
   private val cucumberVersion = "1.2.5"
+  private val mockitoVersion = "2.7.14"
 
   val compile = Seq(
     ws,
@@ -59,7 +60,6 @@ private object AppDependencies {
     lazy val scope: String = "test"
     lazy val test : Seq[ModuleID] = ???
   }
-
   object Test {
     def apply() = new TestDependencies {
       override lazy val test = Seq(
@@ -67,6 +67,7 @@ private object AppDependencies {
         "org.scalaj" %% "scalaj-http" % scalaJVersion % "test,it",
         "org.scalatest" %% "scalatest" % scalaTestVersion % "test,it",
         "org.pegdown" % "pegdown" % pegdownVersion % "test,it",
+        "org.mockito" % "mockito-core" % mockitoVersion % scope,
         "com.typesafe.play" %% "play-test" % PlayVersion.current % "test,it",
         "com.github.tomakehurst" % "wiremock" % wireMockVersion % "test,it",
         "info.cukes" %% "cucumber-scala" % cucumberVersion % "test,it",
