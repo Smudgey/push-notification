@@ -19,6 +19,7 @@ package uk.gov.hmrc.pushnotification.domain
 import java.util.UUID
 
 import play.api.libs.json._
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.Queued
 
 trait NotificationStatus
 
@@ -58,4 +59,4 @@ object NotificationStatus {
   implicit val formats = Format(NotificationStatus.reads, NotificationStatus.writes)
 }
 
-case class Notification(endpoint: String, message: String, messageId: Option[String] = Some(UUID.randomUUID().toString), status: NotificationStatus)
+case class Notification(endpoint: String, message: String, messageId: Option[String] = Some(UUID.randomUUID().toString), status: NotificationStatus = Queued)
