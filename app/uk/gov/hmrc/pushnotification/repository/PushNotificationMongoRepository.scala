@@ -51,7 +51,7 @@ class PushNotificationMongoRepository(implicit mongo: () => DB)
     with BSONBuilderHelpers {
 
 
-  override def ensureIndexes(implicit ec: ExecutionContext): Future[scala.Seq[Boolean]] = {
+  override def ensureIndexes(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
     Future.sequence(
       Seq(
         collection.indexesManager.ensure(
@@ -68,8 +68,14 @@ class PushNotificationMongoRepository(implicit mongo: () => DB)
 
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: NotificationPersist): Boolean = newRecordId.equals(oldRecord.id)
 
-  override def save(authId: String, notification: Notification): Future[DatabaseUpdate[NotificationPersist]] = {
-    atomicUpsert(findNotificationByMessageId(notification.messageId), insertNotification(authId, notification))
+  override def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]] = {
+    atomicUpsert(findNotificationByMessageId(notification.messageId), insertNotification(authId, notification)).map { r =>
+      if (r.writeResult.ok) {
+        Right(r.updateType.savedValue)
+      } else {
+        Left(r.writeResult.message)
+      }
+    }
   }
 
   override def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]] =
@@ -99,7 +105,7 @@ class PushNotificationMongoRepository(implicit mongo: () => DB)
 }
 
 trait PushNotificationRepository {
-  def save(authId: String, notification: Notification): Future[DatabaseUpdate[NotificationPersist]]
+  def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 }
