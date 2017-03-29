@@ -35,7 +35,7 @@ trait PushRegistrationConnectorApi {
 
   def endpointsForAuthId(id: String)(implicit r: HttpReads[Seq[String]], ec: ExecutionContext): Future[Seq[String]] = {
     http.GET[Seq[String]](url = url(s"/push/endpoint/$id")).recover {
-      case ex: HttpException if ex.responseCode == 404  => Seq.empty
+      case ex: HttpException if ex.responseCode == 404  => throw new NotFoundException(s"no endpoints found for '$id'")
     }
   }
 }

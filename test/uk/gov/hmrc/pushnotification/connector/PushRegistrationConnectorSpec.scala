@@ -58,10 +58,10 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
       result shouldBe endpoints
     }
 
-    "return and empty sequence given an auth id that does not have any endpoints" in new Setup {
-      val result: Seq[String] = await(connector.endpointsForAuthId(otherId))
-
-      result shouldBe Seq.empty
+    "throw a NotFoundException given an auth id that does not have any endpoints" in new Setup {
+      intercept[NotFoundException] {
+        await(connector.endpointsForAuthId(otherId))
+      }
     }
 
     "throw Upstream5xxResponse when a 500 response is returned" in new Setup {
