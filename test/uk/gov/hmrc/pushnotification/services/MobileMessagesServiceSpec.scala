@@ -26,7 +26,7 @@ import reactivemongo.bson.BSONObjectID
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.connector.PushRegistrationConnector
-import uk.gov.hmrc.pushnotification.domain.Notification
+import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
 import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationRepository}
 
 import scala.concurrent.Future.{failed, successful}
@@ -45,9 +45,10 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures {
     val someAuthId = "int-auth-id-1"
     val otherAuthId = "int-auth-id-2"
     val brokenAuthId = "int-auth-id-3"
-    val someTemplate = "hello"
+    val someTemplateName = "hello"
     val someParams = Seq("Bob")
     val endpoints = Seq("foo", "bar", "baz")
+    val someTemplate = Template(someTemplateName, someParams:_*)
 
     doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
     doReturn(failed(new NotFoundException("no endpoints")), Nil: _* ).when(mockConnector).endpointsForAuthId(matches(otherAuthId))(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
@@ -64,7 +65,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures {
 
   "MobileMessagesService sendTemplateMessage" should {
     "return a list of message ids given a valid template name and an authority with endpoints" in new Setup {
-      val result = await(service.sendTemplateMessage(someAuthId, someTemplate, someParams))
+      val result = await(service.sendTemplateMessage(someAuthId, someTemplate))
 
       result.size shouldBe 3
       result shouldBe endpoints.map(_ + "-id")
@@ -74,7 +75,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures {
       val nonExistent = "foo"
 
       val result = intercept[BadRequestException] {
-        await(service.sendTemplateMessage(someAuthId, nonExistent, Seq.empty))
+        await(service.sendTemplateMessage(someAuthId, Template(nonExistent)))
       }
 
       result.getMessage shouldBe s"no such template '$nonExistent'"
@@ -82,7 +83,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures {
 
     "throw a not found exception given an authority that does not have any endpoints" in new Setup {
       val result = intercept[NotFoundException] {
-        await(service.sendTemplateMessage(otherAuthId, someTemplate, someParams))
+        await(service.sendTemplateMessage(otherAuthId, someTemplate))
       }
 
       result.getMessage shouldBe s"no endpoints"
@@ -90,7 +91,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures {
 
     "throw a server error if the messages could not be created" in new Setup {
       val result = intercept[ServiceUnavailableException] {
-        await(service.sendTemplateMessage(brokenAuthId, someTemplate, someParams))
+        await(service.sendTemplateMessage(brokenAuthId, someTemplate))
       }
 
       result.getMessage shouldBe "failed to save the thing"

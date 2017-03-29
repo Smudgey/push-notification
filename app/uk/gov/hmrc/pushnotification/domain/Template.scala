@@ -16,11 +16,10 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
-
-object Template {
+case class Template(name: String, params: String*) {
   private val templates: Map[String, String] = Map("hello" -> "Hello %", "bye" -> "Goodbye!", "more" -> "% more %")
 
-  def apply(name: String, params: String*): Option[String] = {
+  def complete(): Option[String] = {
     templates.find(_._1 == name).map(t => params.foldLeft(t._2)((s, p) => s.replaceFirst("%", p)))
   }
 }

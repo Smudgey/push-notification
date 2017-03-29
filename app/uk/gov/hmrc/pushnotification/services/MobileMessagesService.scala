@@ -30,16 +30,16 @@ import scala.concurrent.Future
 
 @ImplementedBy(classOf[MobileMessagesService])
 trait MobileMessagesServiceApi {
-  def sendTemplateMessage(authId: String, templateName: String, params: Seq[String]): Future[Seq[String]]
+  def sendTemplateMessage(authId: String, template: Template): Future[Seq[String]]
 }
 
 @Singleton
 class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepository) extends MobileMessagesServiceApi {
-  override def sendTemplateMessage(authId: String, templateName: String, params: Seq[String]): Future[Seq[String]] = {
+  override def sendTemplateMessage(authId: String, template: Template): Future[Seq[String]] = {
 
-    val message = Template(templateName, params:_*).getOrElse{
-      Logger.error(s"no such template '$templateName'")
-      return Future.failed(new BadRequestException(s"no such template '$templateName'"))
+    val message = template.complete().getOrElse{
+      Logger.error(s"no such template '${template.name}'")
+      return Future.failed(new BadRequestException(s"no such template '${template.name}'"))
     }
 
     for (
