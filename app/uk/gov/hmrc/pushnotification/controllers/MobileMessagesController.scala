@@ -26,26 +26,26 @@ import uk.gov.hmrc.pushnotification.services._
 import scala.concurrent.ExecutionContext
 
 
-trait MobileMessagesController extends BaseController with HeaderValidator with ErrorHandling {
-  val service: MobileMessagesService
-  val accessControl: AccountAccessControlWithHeaderCheck
-
-  def ping(journeyId: Option[String] = None) = accessControl.validateAccept(acceptHeaderValidationRules).async {
-    implicit authenticated =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
-      errorWrapper(service.ping().map(as => Ok(Json.toJson(as))))
-
-  }
-}
-
-object SandboxMobileMessagesController extends MobileMessagesController {
-  override val service = SandboxMobileMessagesService
-  override val accessControl = AccountAccessControlCheckAccessOff
-  override implicit val ec: ExecutionContext = ExecutionContext.global
-}
-
-object LiveMobileMessagesController extends MobileMessagesController {
-  override val service = LiveMobileMessagesService
-  override val accessControl = AccountAccessControlWithHeaderCheck
-  override implicit val ec: ExecutionContext = ExecutionContext.global
-}
+//trait MobileMessagesController extends BaseController with HeaderValidator with ErrorHandling {
+//  val service: MobileMessagesService
+//  val accessControl: AccountAccessControlWithHeaderCheck
+//
+//  def ping(journeyId: Option[String] = None) = accessControl.validateAccept(acceptHeaderValidationRules).async {
+//    implicit authenticated =>
+//      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
+//      errorWrapper(service.ping().map(as => Ok(Json.toJson(as))))
+//
+//  }
+//}
+//
+//object SandboxMobileMessagesController extends MobileMessagesController {
+//  override val service = SandboxMobileMessagesService
+//  override val accessControl = AccountAccessControlCheckAccessOff
+//  override implicit val ec: ExecutionContext = ExecutionContext.global
+//}
+//
+//object LiveMobileMessagesController extends MobileMessagesController {
+//  override val service = LiveMobileMessagesService
+//  override val accessControl = AccountAccessControlWithHeaderCheck
+//  override implicit val ec: ExecutionContext = ExecutionContext.global
+//}
