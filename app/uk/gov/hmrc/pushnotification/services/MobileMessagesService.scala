@@ -20,8 +20,10 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.Logger
-import uk.gov.hmrc.play.http.{BadRequestException, ServiceUnavailableException}
-import uk.gov.hmrc.pushnotification.connector.PushRegistrationConnector
+import uk.gov.hmrc.api.service.Auditor
+import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
+import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
+import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
 import uk.gov.hmrc.pushnotification.repository.PushNotificationRepository
 
@@ -29,23 +31,31 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 @ImplementedBy(classOf[MobileMessagesService])
-trait MobileMessagesServiceApi {
-  def sendTemplateMessage(authId: String, template: Template): Future[Seq[String]]
+trait MobileMessagesServiceApi extends Auditor {
+  override val auditConnector = MicroserviceAuditConnector
+
+  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[Seq[String]]
 }
 
 @Singleton
 class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepository) extends MobileMessagesServiceApi {
-  override def sendTemplateMessage(authId: String, template: Template): Future[Seq[String]] = {
 
-    val message = template.complete().getOrElse{
-      Logger.error(s"no such template '${template.name}'")
-      return Future.failed(new BadRequestException(s"no such template '${template.name}'"))
+  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Seq[String]] = {
+    withAudit("sendTemplateMessage", Map.empty) {
+      val auth = authority.getOrElse {
+        return Future.failed(new UnauthorizedException("No Authority record found for request!"))
+      }
+
+      val message = template.complete().getOrElse {
+        Logger.error(s"no such template '${template.name}'")
+        return Future.failed(new BadRequestException(s"No such template '${template.name}'"))
+      }
+
+      for (
+        endpoints <- connector.endpointsForAuthId(auth.authInternalId);
+        messageIds <- createNotifications(auth.authInternalId, endpoints, message)
+      ) yield messageIds
     }
-
-    for (
-      endpoints <- connector.endpointsForAuthId(authId);
-      messageIds <- createNotifications(authId, endpoints, message)
-    ) yield messageIds
   }
 
   private def createNotifications(authId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {

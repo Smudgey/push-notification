@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+package uk.gov.hmrc.pushnotification.config
+
 import akka.stream.Materializer
 import play.api.Play.current
 import com.typesafe.config.Config
@@ -33,7 +35,6 @@ import uk.gov.hmrc.api.config.{ServiceLocatorConfig, ServiceLocatorRegistration}
 import uk.gov.hmrc.api.connector.ServiceLocatorConnector
 import uk.gov.hmrc.api.controllers._
 import uk.gov.hmrc.play.filters.MicroserviceFilterSupport
-import uk.gov.hmrc.pushnotification.config.{MicroserviceAuditConnector, MicroserviceAuthConnector, WSHttp}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
