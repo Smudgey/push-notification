@@ -60,8 +60,8 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
     doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockRepository).save(matches(brokenAuth.authInternalId),any[Notification]())
     doAnswer(new Answer[Future[Either[String,NotificationPersist]]] {
       override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, NotificationPersist]] = {
-        val actualAuthId = invocationOnMock.getArgument[String](0)
-        val actualNotification = invocationOnMock.getArgument[Notification](1)
+        val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
+        val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
         successful(Right(NotificationPersist(BSONObjectID.generate, actualAuthId, actualNotification.endpoint, actualNotification.message, actualNotification.endpoint + "-id", actualNotification.status)))
       }
@@ -81,7 +81,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
         await(service.sendTemplateMessage(someTemplate)(hc, None))
       }
 
-      result.getMessage shouldBe s"No Authority record found for request!"
+      result.getMessage shouldBe "No Authority record found for request!"
     }
 
     "throw a bad request exception given a non-existent template" in new Setup {
@@ -99,7 +99,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
         await(service.sendTemplateMessage(someTemplate)(hc, Option(otherAuth)))
       }
 
-      result.getMessage shouldBe s"No endpoints"
+      result.getMessage shouldBe "No endpoints"
     }
 
     "throw a server error if the messages could not be created" in new Setup {
