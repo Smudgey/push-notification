@@ -19,12 +19,12 @@ package uk.gov.hmrc.pushnotification.controllers.action
 import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
-import uk.gov.hmrc.api.controllers.{ErrorUnauthorized, ErrorUnauthorizedLowCL, ErrorAcceptHeaderInvalid, HeaderValidator}
+import uk.gov.hmrc.api.controllers.{ErrorAcceptHeaderInvalid, ErrorUnauthorized, ErrorUnauthorizedLowCL, HeaderValidator}
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.http.hooks.HttpHook
-import uk.gov.hmrc.pushnotification.connector.{AccountWithLowCL, NinoNotFoundOnAccount, AuthConnector, Authority}
-import uk.gov.hmrc.pushnotification.controllers.{ForbiddenAccess, ErrorUnauthorizedNoNino}
+import uk.gov.hmrc.pushnotification.connector._
+import uk.gov.hmrc.pushnotification.controllers.{ErrorNoInternalId, ErrorUnauthorizedNoNino, ForbiddenAccess}
 
 import scala.concurrent.Future
 
@@ -45,18 +45,22 @@ trait AccountAccessControl extends ActionBuilder[AuthenticatedRequest] with Resu
         block(AuthenticatedRequest(Some(authority),request))
       }
     }.recover {
-      case ex:uk.gov.hmrc.play.http.Upstream4xxResponse => Unauthorized(Json.toJson(ErrorUnauthorized))
+      case _:uk.gov.hmrc.play.http.Upstream4xxResponse => Unauthorized(Json.toJson(ErrorUnauthorized))
 
-      case ex:ForbiddenException =>
-        Logger.info("Unauthorized! ForbiddenException caught and returning 403 status!")
+      case _:ForbiddenException =>
+        Logger.error("Unauthorized! ForbiddenException caught and returning 403 status!")
         Forbidden(Json.toJson(ForbiddenAccess))
 
-      case ex:NinoNotFoundOnAccount =>
-        Logger.info("Unauthorized! NINO not found on account!")
+      case _:NinoNotFoundOnAccount =>
+        Logger.error("Unauthorized! NINO not found on account!")
         Unauthorized(Json.toJson(ErrorUnauthorizedNoNino))
 
-      case ex:AccountWithLowCL =>
-        Logger.info("Unauthorized! Account with low CL!")
+      case _:NoInternalId =>
+        Logger.info("Account does not have an internal id!")
+        Unauthorized(Json.toJson(ErrorNoInternalId))
+
+      case _:AccountWithLowCL =>
+        Logger.error("Unauthorized! Account with low CL!")
         Unauthorized(Json.toJson(ErrorUnauthorizedLowCL))
     }
   }

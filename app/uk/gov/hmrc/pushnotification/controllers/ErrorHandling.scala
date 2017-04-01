@@ -17,13 +17,18 @@
 package uk.gov.hmrc.pushnotification.controllers
 
 import uk.gov.hmrc.api.controllers.ErrorResponse
+import uk.gov.hmrc.play.http.BadRequestException
 import uk.gov.hmrc.play.microservice.controller.BaseController
 
 import scala.concurrent.{ExecutionContext, Future}
 
 case object ErrorUnauthorizedNoNino extends ErrorResponse(401, "UNAUTHORIZED", "NINO does not exist on account")
 
+case object ErrorNoInternalId extends ErrorResponse(401, "UNAUTHORIZED", "Account id error")
+
 case object ForbiddenAccess extends ErrorResponse(403, "UNAUTHORIZED", "Access denied!")
+
+case class BadRequestError(e: BadRequestException) extends ErrorResponse(400, "BAD REQUEST", e.getMessage)
 
 trait ErrorHandling {
   self:BaseController =>
@@ -37,11 +42,13 @@ trait ErrorHandling {
 
   def errorWrapper(func: => Future[mvc.Result])(implicit hc:HeaderCarrier) = {
     func.recover {
-      case ex:NotFoundException => Status(ErrorNotFound.httpStatusCode)(Json.toJson(ErrorNotFound))
+      case _:NotFoundException => Status(ErrorNotFound.httpStatusCode)(Json.toJson(ErrorNotFound))
 
-      case ex:UnauthorizedException => Unauthorized(Json.toJson(ErrorUnauthorizedNoNino))
+      case _:UnauthorizedException => Unauthorized(Json.toJson(ErrorUnauthorizedNoNino))
 
-      case ex:ForbiddenException => Unauthorized(Json.toJson(ErrorUnauthorizedLowCL))
+      case _:ForbiddenException => Unauthorized(Json.toJson(ErrorUnauthorizedLowCL))
+
+      case e: BadRequestException => BadRequest(Json.toJson(BadRequestError(e)))
 
       case e: Throwable =>
         Logger.error(s"Internal server error: ${e.getMessage}", e)

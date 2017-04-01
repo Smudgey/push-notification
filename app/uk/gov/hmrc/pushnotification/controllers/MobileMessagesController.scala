@@ -16,36 +16,45 @@
 
 package uk.gov.hmrc.pushnotification.controllers
 
-import play.api.libs.json._
-import uk.gov.hmrc.api.controllers._
+import javax.inject.{Inject, Singleton}
+
+import com.google.inject.ImplementedBy
+import play.api.Logger
+import play.api.libs.json.{JsValue, Json}
+import play.api.mvc.{Action, BodyParsers}
+import uk.gov.hmrc.api.controllers.HeaderValidator
 import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
-import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControlCheckAccessOff, AccountAccessControlWithHeaderCheck}
-import uk.gov.hmrc.pushnotification.services._
+import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
+import uk.gov.hmrc.pushnotification.domain.Template
+import uk.gov.hmrc.pushnotification.services.MobileMessagesServiceApi
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
 
+@ImplementedBy(classOf[MobileMessagesController])
+trait MobileMessagesControllerApi extends BaseController with HeaderValidator with ErrorHandling  {
+  def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
+}
 
-//trait MobileMessagesController extends BaseController with HeaderValidator with ErrorHandling {
-//  val service: MobileMessagesService
-//  val accessControl: AccountAccessControlWithHeaderCheck
-//
-//  def ping(journeyId: Option[String] = None) = accessControl.validateAccept(acceptHeaderValidationRules).async {
-//    implicit authenticated =>
-//      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
-//      errorWrapper(service.ping().map(as => Ok(Json.toJson(as))))
-//
-//  }
-//}
-//
-//object SandboxMobileMessagesController extends MobileMessagesController {
-//  override val service = SandboxMobileMessagesService
-//  override val accessControl = AccountAccessControlCheckAccessOff
-//  override implicit val ec: ExecutionContext = ExecutionContext.global
-//}
-//
-//object LiveMobileMessagesController extends MobileMessagesController {
-//  override val service = LiveMobileMessagesService
-//  override val accessControl = AccountAccessControlWithHeaderCheck
-//  override implicit val ec: ExecutionContext = ExecutionContext.global
-//}
+@Singleton
+class MobileMessagesController @Inject() (service: MobileMessagesServiceApi, accessControl: AccountAccessControlWithHeaderCheck) extends MobileMessagesControllerApi {
+  override implicit val ec: ExecutionContext = ExecutionContext.global
+
+  def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+    implicit authenticated =>
+      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
+
+      authenticated.request.body.validate[Template].fold(
+        errors => {
+          Logger.warn("Service failed for sendTemplateMessage: " + errors)
+          Future.successful(BadRequest)
+        },
+        template => {
+          errorWrapper(service.sendTemplateMessage(template)(hc, authenticated.authority).map {
+            s: Seq[String] => Created(Json.toJson(s))
+          })
+        }
+      )
+  }
+}
