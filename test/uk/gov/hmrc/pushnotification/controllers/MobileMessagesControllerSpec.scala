@@ -31,7 +31,7 @@ import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException}
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{AuthConnector, Authority, NoInternalId, StubApplicationConfiguration}
-import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControl, AccountAccessControlWithHeaderCheck}
+import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControl, AccountAccessControlWithHeaderCheck, Auth}
 import uk.gov.hmrc.pushnotification.domain.Template
 import uk.gov.hmrc.pushnotification.services.MobileMessagesServiceApi
 
@@ -48,11 +48,7 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
     val mockService = mock[MobileMessagesServiceApi]
     val mockAuthConnector = mock[AuthConnector]
 
-    val testAccessControl = new AccountAccessControlWithHeaderCheck {
-      override val accessControl: AccountAccessControl = new AccountAccessControl {
-        override val authConnector: AuthConnector = mockAuthConnector
-      }
-    }
+    val testAccessControl = new AccountAccessControlWithHeaderCheck(new AccountAccessControl(new Auth(mockAuthConnector)))
 
     val controller = new MobileMessagesController(mockService, testAccessControl)
 

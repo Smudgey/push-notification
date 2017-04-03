@@ -16,6 +16,8 @@
 
 package uk.gov.hmrc.pushnotification.controllers.action
 
+import javax.inject.{Inject, Singleton}
+
 import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
@@ -31,7 +33,7 @@ import scala.concurrent.Future
 
 case class AuthenticatedRequest[A](authority: Option[Authority], request: Request[A]) extends WrappedRequest(request)
 
-trait AccountAccessControl extends ActionBuilder[AuthenticatedRequest] with Results {
+trait AccountAccessControlApi extends ActionBuilder[AuthenticatedRequest] with Results {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -67,9 +69,9 @@ trait AccountAccessControl extends ActionBuilder[AuthenticatedRequest] with Resu
 
 }
 
-trait AccountAccessControlWithHeaderCheck extends HeaderValidator {
+trait AccountAccessControlWithHeaderCheckApi extends HeaderValidator {
   val checkAccess=true
-  val accessControl:AccountAccessControl
+  val accessControl:AccountAccessControlApi
 
   override def validateAccept(rules: Option[String] => Boolean) = new ActionBuilder[AuthenticatedRequest] {
 
@@ -83,33 +85,20 @@ trait AccountAccessControlWithHeaderCheck extends HeaderValidator {
   }
 }
 
-object Auth {
-  val authConnector: AuthConnector = AuthConnector
+@Singleton
+class Auth @Inject() (val authConnector: AuthConnector)
+
+@Singleton
+class AccountAccessControl @Inject() (val auth: Auth) extends AccountAccessControlApi {
+  val authConnector: AuthConnector = auth.authConnector
 }
 
-object AccountAccessControl extends AccountAccessControl {
-  val authConnector: AuthConnector = Auth.authConnector
-}
+@Singleton
+class AccountAccessControlWithHeaderCheck @Inject() (val accessControl: AccountAccessControl) extends AccountAccessControlWithHeaderCheckApi
 
-object AccountAccessControlWithHeaderCheck extends AccountAccessControlWithHeaderCheck {
-  val accessControl: AccountAccessControl = AccountAccessControl
-}
-
-object AccountAccessControlSandbox extends AccountAccessControl {
-  val authConnector: AuthConnector = new AuthConnector {
-    override val serviceUrl: String = "NO SERVICE"
-
-    override def serviceConfidenceLevel: ConfidenceLevel = ConfidenceLevel.L0
-
-    override def http: HttpGet = new HttpGet {
+object AccountAccessControlSandbox extends AccountAccessControlApi {
+  val authConnector: AuthConnector = new AuthConnector("NO SERVICE", ConfidenceLevel.L0, new HttpGet {
       override protected def doGet(url: String)(implicit hc: HeaderCarrier): Future[HttpResponse] = Future.failed(new IllegalArgumentException("Sandbox mode!"))
       override val hooks: Seq[HttpHook] = NoneRequired
-    }
-  }
-}
-
-object AccountAccessControlCheckAccessOff extends AccountAccessControlWithHeaderCheck {
-  override val checkAccess=false
-
-  val accessControl: AccountAccessControl = AccountAccessControlSandbox
+    })
 }

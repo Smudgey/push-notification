@@ -16,39 +16,28 @@
 
 package uk.gov.hmrc.pushnotification.connector
 
+import org.mockito.ArgumentMatchers.{any, contains, endsWith}
+import org.mockito.Mockito.doReturn
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.domain.{Nino, SaUtr}
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http.hooks.HttpHook
+import uk.gov.hmrc.play.http.ws.WSHttp
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.UnitSpec
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future.successful
 
-class AuthConnectorSpec extends UnitSpec with ScalaFutures {
+class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
 
   implicit val hc = HeaderCarrier()
   implicit val ec: ExecutionContext = ExecutionContext.global
 
-  def authConnector(authResponse: HttpResponse, oidResponse: HttpResponse, cl: ConfidenceLevel = ConfidenceLevel.L200) = new AuthConnector {
+  val mockHttp: WSHttp = mock[WSHttp]
 
-    override def http: HttpGet = new HttpGet {
-      override protected def doGet(url: String)(implicit hc: HeaderCarrier): Future[HttpResponse] = {
-        if (url.contains("oid")) {
-          Future.successful(oidResponse)
-        } else {
-          Future.successful(authResponse)
-        }
-      }
-      override val hooks: Seq[HttpHook] = Seq.empty
-    }
-
-    override val serviceUrl: String = "http://localhost"
-
-    override def serviceConfidenceLevel: ConfidenceLevel = cl
-  }
-
+  val serviceUrl = "http://localhost:1234/auth"
 
   "grantAccess" should {
 
@@ -65,7 +54,10 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val authResponse = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, oid)))
       val oidResponse = HttpResponse(200, Some(idsJson(internalId, externalId)))
 
-      val authority: Authority = await(authConnector(authResponse, oidResponse, serviceConfidenceLevel).grantAccess())
+      doReturn(successful(authResponse), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
+      val authority: Authority = await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
 
       authority.authInternalId shouldBe internalId
     }
@@ -83,8 +75,11 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val authResponse = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, oid)))
       val oidResponse = HttpResponse(200, Some(Json.parse("""{ "foo": "bar" }""")))
 
+      doReturn(successful(authResponse), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
       try {
-        await(authConnector(authResponse, oidResponse, serviceConfidenceLevel).grantAccess())
+        await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
       } catch {
         case e: NoInternalId =>
           e.message shouldBe "The user must have an internal id"
@@ -103,8 +98,11 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
+      doReturn(successful(response), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
       try {
-        await(authConnector(response, oidResponse, serviceConfidenceLevel).grantAccess())
+        await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
       } catch {
         case e: ForbiddenException =>
           e.message shouldBe "The user does not have sufficient permissions to access this service"
@@ -124,7 +122,10 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      await(authConnector(response, oidResponse, serviceConfidenceLevel).grantAccess())
+      doReturn(successful(response), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
+      await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
     }
 
     "find NINO only account when CL is correct" in {
@@ -133,10 +134,14 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val authorityConfidenceLevel = ConfidenceLevel.L200
       val saUtr = None
       val nino = Some(Nino("CS100700A"))
+
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      await(authConnector(response, oidResponse, serviceConfidenceLevel).grantAccess())
+      doReturn(successful(response), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
+      await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
 
     }
 
@@ -149,8 +154,11 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
+      doReturn(successful(response), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
       try {
-        await(authConnector(response, oidResponse, serviceConfidenceLevel).grantAccess())
+        await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
       } catch {
         case e: NinoNotFoundOnAccount =>
           e.message shouldBe "The user must have a National Insurance Number"
@@ -175,8 +183,11 @@ class AuthConnectorSpec extends UnitSpec with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
+      doReturn(successful(response), Nil: _*).when(mockHttp).GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+      doReturn(successful(oidResponse), Nil: _*).when(mockHttp).GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())
+
       try {
-        authConnector(response, oidResponse, serviceConfidenceLevel).grantAccess()
+        new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess()
       } catch {
         case e: UnauthorizedException =>
           e.message shouldBe "The user must have a National Insurance Number to access this service"

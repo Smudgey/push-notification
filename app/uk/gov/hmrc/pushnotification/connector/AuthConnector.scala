@@ -16,13 +16,13 @@
 
 package uk.gov.hmrc.pushnotification.connector
 
-import play.api.Play
+import javax.inject.{Inject, Named, Singleton}
+
+import com.google.inject.ImplementedBy
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.domain.Nino
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.config.ServicesConfig
 import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, HttpGet}
-import uk.gov.hmrc.pushnotification.config.WSHttp
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -35,7 +35,8 @@ class AccountWithLowCL(message: String) extends uk.gov.hmrc.play.http.HttpExcept
 
 case class Authority(nino: Nino, cl: ConfidenceLevel, authInternalId: String)
 
-trait AuthConnector {
+@ImplementedBy(classOf[AuthConnector])
+trait AuthConnectorApi {
 
   val serviceUrl: String
 
@@ -86,12 +87,5 @@ trait AuthConnector {
 
 }
 
-object AuthConnector extends AuthConnector with ServicesConfig {
-
-  import play.api.Play.current
-
-  val serviceUrl = baseUrl("auth")
-  val http = WSHttp
-  val serviceConfidenceLevel: ConfidenceLevel = ConfidenceLevel.fromInt(Play.configuration.getInt("controllers.confidenceLevel")
-    .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level")))
-}
+@Singleton
+class AuthConnector @Inject() (@Named("authUrl") val serviceUrl: String, val serviceConfidenceLevel: ConfidenceLevel, val http: HttpGet) extends AuthConnectorApi
