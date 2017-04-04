@@ -77,6 +77,18 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
     }
   }
 
+  override def update(messageId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]] = {
+    atomicUpdate(findNotificationByMessageId(Some(messageId)), updateStatus(status)).map { maybeUpdate =>
+      maybeUpdate.map { update =>
+        if (update.writeResult.ok) {
+          Right(update.updateType.savedValue)
+        } else {
+          Left(update.writeResult.message)
+        }
+      }.getOrElse(Left(s"Cannot find message with id = $messageId"))
+    }
+  }
+
   override def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]] =
     collection.
       find(Json.obj("status" -> status.toString)).
@@ -110,6 +122,8 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
 
   def findNotificationByMessageId(messageId: Option[String]) = BSONDocument("messageId" -> messageId.getOrElse("-1"))
 
+  def updateStatus(status: NotificationStatus) = BSONDocument("$set" -> BSONDocument("status" -> status.toString))
+
   def insertNotification(authId: String, notification: Notification): BSONDocument = {
     val messageId = notification.messageId.fold(BSONDocument.empty) { id =>
       BSONDocument("$setOnInsert" -> BSONDocument("messageId" -> id))
@@ -117,9 +131,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
     val coreData = BSONDocument(
       "$setOnInsert" -> BSONDocument("authId" -> authId),
       "$setOnInsert" -> BSONDocument("endpoint" -> notification.endpoint),
-      "$setOnInsert" -> BSONDocument("message" -> notification.message),
       "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis)),
 
+      "$set" -> BSONDocument("message" -> notification.message),
       "$set" -> BSONDocument("status" -> notification.status.toString),
       "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
@@ -139,6 +153,8 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
 @ImplementedBy(classOf[PushNotificationMongoRepository])
 trait PushNotificationRepositoryApi {
   def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
+
+  def update(messageId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 

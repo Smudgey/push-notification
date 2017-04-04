@@ -25,7 +25,7 @@ import reactivemongo.core.errors.DatabaseException
 import uk.gov.hmrc.mongo.MongoSpecSupport
 import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.domain.Notification
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Queued, Sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Queued, Sent}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -112,7 +112,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       result(2).status shouldBe Queued
     }
 
-    "update the status of existing notifications" in new Setup {
+    "update existing notifications given a notification with an existing message id" in new Setup {
       await {
         repository.save(someAuthId, Notification(someEndpoint, someMessage))
         repository.save(someAuthId, Notification(otherEndpoint, someMessage))
@@ -125,11 +125,12 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       val existing: NotificationPersist = saved(1)
 
-      val result: Either[String, NotificationPersist] = await(repository.save(existing.authId, Notification(existing.endpoint, existing.message, Some(existing.messageId), Delivered)))
+      val result: Either[String, NotificationPersist] = await(repository.save(existing.authId, Notification(existing.endpoint, otherMessage, Some(existing.messageId), Delivered)))
 
       result match {
         case Right(actual) =>
           actual.messageId shouldBe existing.messageId
+          actual.message shouldBe otherMessage
           actual.status shouldBe Delivered
         case Left(e) => fail(e)
       }
@@ -137,6 +138,50 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       val stillQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
       stillQueued.size shouldBe 2
+    }
+
+    "update the status of notifications" in new Setup {
+      await {
+        repository.save(someAuthId, Notification(someEndpoint, someMessage))
+        repository.save(someAuthId, Notification(otherEndpoint, someMessage))
+        repository.save(otherAuthId, Notification(yetAnotherEndpoint, otherMessage))
+      }
+
+      val saved: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
+
+      saved.size shouldBe 3
+
+      val existing: NotificationPersist = saved(1)
+
+      val updated: Either[String, NotificationPersist] = await(repository.update(existing.messageId, Disabled))
+
+      updated match {
+        case Right(actual) =>
+          actual.messageId shouldBe existing.messageId
+          actual.status shouldBe Disabled
+        case Left(e) => fail(e)
+      }
+
+      val stillQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
+
+      stillQueued.size shouldBe 2
+    }
+
+    "not update the status of notifications given an unknown message id" in new Setup {
+      await {
+        repository.save(someAuthId, Notification(someEndpoint, someMessage))
+      }
+
+      val unknownId = "does-not-exist-message-id"
+
+      val updated: Either[String, NotificationPersist] = await(repository.update(unknownId, Sent))
+
+      updated match {
+        case Right(persisted) =>
+          fail(new Exception(s"should not have updated message for '${persisted.authId}'"))
+        case Left(msg) =>
+          msg shouldBe s"Cannot find message with id = $unknownId"
+      }
     }
 
     "find unsent notifications and set these to 'sent'" in new Setup {
