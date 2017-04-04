@@ -16,13 +16,15 @@
 
 package uk.gov.hmrc.pushnotification.repository
 
+import javax.inject.{Inject, Singleton}
+
+import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, JsNumber, Json}
-import play.modules.reactivemongo.MongoDbConnection
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
-import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, DatabaseUpdate, ReactiveRepository}
+import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
@@ -38,16 +40,11 @@ object NotificationPersist {
   })
 }
 
-object PushNotificationRepository extends MongoDbConnection {
-  lazy val mongo = new PushNotificationMongoRepository
-
-  def apply(): PushNotificationRepository = mongo
-}
-
-class PushNotificationMongoRepository(implicit mongo: () => DB)
-  extends ReactiveRepository[NotificationPersist, BSONObjectID]("notification", mongo, NotificationPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
+@Singleton
+class PushNotificationMongoRepository @Inject() (mongo: DB)
+  extends ReactiveRepository[NotificationPersist, BSONObjectID]("notification", () => mongo, NotificationPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
     with AtomicUpdate[NotificationPersist]
-    with PushNotificationRepository
+    with PushNotificationRepositoryApi
     with BSONBuilderHelpers {
 
 
@@ -104,7 +101,8 @@ class PushNotificationMongoRepository(implicit mongo: () => DB)
   }
 }
 
-trait PushNotificationRepository {
+@ImplementedBy(classOf[PushNotificationMongoRepository])
+trait PushNotificationRepositoryApi {
   def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]

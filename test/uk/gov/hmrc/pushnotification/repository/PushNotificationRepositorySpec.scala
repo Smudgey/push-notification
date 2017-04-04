@@ -31,7 +31,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
 
-  val repository: PushNotificationMongoRepository = new PushNotificationMongoRepository
+  val repository: PushNotificationMongoRepository = new PushNotificationMongoRepository(mongo())
 
   trait Setup {
     val someAuthId = "some-auth-id"

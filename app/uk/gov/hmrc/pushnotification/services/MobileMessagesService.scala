@@ -25,7 +25,7 @@ import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavail
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
-import uk.gov.hmrc.pushnotification.repository.PushNotificationRepository
+import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -38,7 +38,7 @@ trait MobileMessagesServiceApi extends Auditor {
 }
 
 @Singleton
-class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepository) extends MobileMessagesServiceApi {
+class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends MobileMessagesServiceApi {
 
   override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Seq[String]] = {
     withAudit("sendTemplateMessage", Map.empty) {

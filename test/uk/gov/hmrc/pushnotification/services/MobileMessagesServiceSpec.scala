@@ -30,7 +30,7 @@ import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
-import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationRepository}
+import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationRepositoryApi}
 
 import scala.concurrent.Future.{failed, successful}
 import scala.concurrent.{ExecutionContext, Future}
@@ -43,7 +43,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
 
   private trait Setup extends MockitoSugar {
     val mockConnector = mock[PushRegistrationConnector]
-    val mockRepository = mock[PushNotificationRepository]
+    val mockRepository = mock[PushNotificationRepositoryApi]
 
     val service = new MobileMessagesService(mockConnector, mockRepository)
 
