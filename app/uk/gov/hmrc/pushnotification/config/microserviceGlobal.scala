@@ -24,17 +24,14 @@ import play.api._
 import play.api.libs.json.Json
 import play.api.mvc.Results._
 import play.api.mvc.{RequestHeader, Result}
+import uk.gov.hmrc.api.controllers._
 import uk.gov.hmrc.play.audit.filters.AuditFilter
 import uk.gov.hmrc.play.auth.controllers.AuthParamsControllerConfig
 import uk.gov.hmrc.play.auth.microservice.filters.AuthorisationFilter
 import uk.gov.hmrc.play.config.{AppName, ControllerConfig, RunMode}
-import uk.gov.hmrc.play.http.HeaderCarrier
+import uk.gov.hmrc.play.filters.MicroserviceFilterSupport
 import uk.gov.hmrc.play.http.logging.filters.LoggingFilter
 import uk.gov.hmrc.play.microservice.bootstrap.DefaultMicroserviceGlobal
-import uk.gov.hmrc.api.config.{ServiceLocatorConfig, ServiceLocatorRegistration}
-import uk.gov.hmrc.api.connector.ServiceLocatorConnector
-import uk.gov.hmrc.api.controllers._
-import uk.gov.hmrc.play.filters.MicroserviceFilterSupport
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -66,7 +63,7 @@ object MicroserviceAuthFilter extends AuthorisationFilter with MicroserviceFilte
   override def controllerNeedsAuth(controllerName: String): Boolean = ControllerConfiguration.paramsForController(controllerName).needsAuth
 }
 
-object MicroserviceGlobal extends DefaultMicroserviceGlobal with RunMode with ServiceLocatorConfig with ServiceLocatorRegistration {
+object MicroserviceGlobal extends DefaultMicroserviceGlobal with RunMode { // with ServiceLocatorConfig with ServiceLocatorRegistration {
   override val auditConnector = MicroserviceAuditConnector
 
   override def microserviceMetricsConfig(implicit app: Application): Option[Configuration] = app.configuration.getConfig(s"microservice.metrics")
@@ -77,9 +74,9 @@ object MicroserviceGlobal extends DefaultMicroserviceGlobal with RunMode with Se
 
   override val authFilter = Some(MicroserviceAuthFilter)
 
-  override val slConnector: ServiceLocatorConnector = ServiceLocatorConnector(WSHttp)
+//  override val slConnector: ServiceLocatorConnector = ServiceLocatorConnector(WSHttp)
 
-  override implicit val hc: HeaderCarrier = HeaderCarrier()
+//  override implicit val hc: HeaderCarrier = HeaderCarrier()
 
   override def onError(request: RequestHeader, ex: Throwable): Future[Result] = {
     super.onError(request, ex) map (res => {
