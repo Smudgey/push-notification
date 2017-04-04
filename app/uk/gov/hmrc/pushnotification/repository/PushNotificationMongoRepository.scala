@@ -20,11 +20,13 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, JsNumber, Json}
+import reactivemongo.api.commands.UpdateWriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Queued, Sent, queued, sent}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
@@ -77,10 +79,34 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
 
   override def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]] =
     collection.
-      find(Json.obj("status" -> Json.toJson(status))).
+      find(Json.obj("status" -> status.toString)).
       sort(Json.obj("updated" -> JsNumber(1))).
       cursor[NotificationPersist](ReadPreference.primaryPreferred).
       collect[Seq]()
+
+  override def getUnsentNotifications: Future[Seq[NotificationPersist]] = {
+    val updated = BSONDateTime(DateTimeUtils.now.getMillis)
+
+    val update: Future[UpdateWriteResult] = collection.update(
+      BSONDocument("status" -> queued),
+      BSONDocument(
+        "$set" -> BSONDocument(
+          "updated" -> updated,
+          "status" -> sent
+        )
+      ),
+      upsert = false,
+      multi = true
+    )
+
+    update.flatMap { _ =>
+      collection.
+        find(BSONDocument("updated" -> updated)).
+        sort(Json.obj("updated" -> JsNumber(-1))).
+        cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        collect[Seq]()
+    }
+  }
 
   def findNotificationByMessageId(messageId: Option[String]) = BSONDocument("messageId" -> messageId.getOrElse("-1"))
 
@@ -99,6 +125,15 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
     )
     messageId ++ coreData
   }
+
+  def findUnsent(): BSONDocument =
+    BSONDocument("status" -> Queued.toString)
+
+  def setSent(): BSONDocument =
+    BSONDocument(
+      "$set" -> BSONDocument("status" -> Sent.toString),
+      "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
+    )
 }
 
 @ImplementedBy(classOf[PushNotificationMongoRepository])
@@ -106,4 +141,6 @@ trait PushNotificationRepositoryApi {
   def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
+
+  def getUnsentNotifications: Future[Seq[NotificationPersist]]
 }

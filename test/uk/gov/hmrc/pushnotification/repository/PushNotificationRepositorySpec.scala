@@ -25,7 +25,7 @@ import reactivemongo.core.errors.DatabaseException
 import uk.gov.hmrc.mongo.MongoSpecSupport
 import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.domain.Notification
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Queued}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Queued, Sent}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -38,6 +38,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     val otherAuthId = "other-auth-id"
     val someEndpoint = "foo:bar"
     val otherEndpoint = "blip:blop"
+    val yetAnotherEndpoint = "wibble:wobble"
     val someMessage = "Hello world"
     val otherMessage = "Goodbye"
   }
@@ -115,7 +116,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       await {
         repository.save(someAuthId, Notification(someEndpoint, someMessage))
         repository.save(someAuthId, Notification(otherEndpoint, someMessage))
-        repository.save(otherAuthId, Notification(someEndpoint, otherMessage))
+        repository.save(otherAuthId, Notification(yetAnotherEndpoint, otherMessage))
       }
 
       val saved: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
@@ -136,6 +137,33 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       val stillQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
       stillQueued.size shouldBe 2
+    }
+
+    "find unsent notifications and set these to 'sent'" in new Setup {
+      await {
+        repository.save(someAuthId, Notification(someEndpoint, someMessage))
+        repository.save(someAuthId, Notification(otherEndpoint, someMessage))
+        repository.save(otherAuthId, Notification(yetAnotherEndpoint, otherMessage, status = Delivered))
+      }
+
+      val queued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
+
+      queued.size shouldBe 2
+
+      val result: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+
+      result.size shouldBe 2
+      result.head.endpoint shouldBe someEndpoint
+      result(1).endpoint shouldBe otherEndpoint
+
+      val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
+      val delivered: Seq[NotificationPersist] = await(repository.findByStatus(Delivered))
+
+      val stillQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+
+      sent.size shouldBe 2
+      delivered.size shouldBe 1
+      stillQueued.size shouldBe 0
     }
   }
 }

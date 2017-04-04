@@ -25,12 +25,18 @@ trait NotificationStatus
 
 object NotificationStatus {
   val queued = "queued"
+  val sent = "sent"
   val delivered = "delivered"
   val disabled = "disabled"
 
   case object Queued extends NotificationStatus {
     override def toString: String = queued
   }
+
+  case object Sent extends NotificationStatus {
+    override def toString: String = sent
+  }
+
   case object Delivered extends NotificationStatus {
     override def toString: String = delivered
   }
@@ -42,6 +48,7 @@ object NotificationStatus {
   val reads: Reads[NotificationStatus] = new Reads[NotificationStatus] {
     override def reads(json: JsValue): JsResult[NotificationStatus] = json match {
       case JsString(NotificationStatus.queued) => JsSuccess(Queued)
+      case JsString(NotificationStatus.sent) => JsSuccess(Sent)
       case JsString(NotificationStatus.delivered) => JsSuccess(Delivered)
       case JsString(NotificationStatus.disabled) => JsSuccess(Disabled)
       case _ => throw new Exception(s"Failed to resolve $json")
@@ -51,6 +58,7 @@ object NotificationStatus {
   val writes: Writes[NotificationStatus] = new Writes[NotificationStatus] {
     override def writes(status: NotificationStatus): JsString = status match {
       case Queued => JsString(queued)
+      case Sent => JsString(sent)
       case Delivered => JsString(delivered)
       case Disabled => JsString(disabled)
     }
