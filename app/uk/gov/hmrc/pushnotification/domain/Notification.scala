@@ -51,7 +51,7 @@ object NotificationStatus {
       case JsString(NotificationStatus.sent) => JsSuccess(Sent)
       case JsString(NotificationStatus.delivered) => JsSuccess(Delivered)
       case JsString(NotificationStatus.disabled) => JsSuccess(Disabled)
-      case _ => throw new Exception(s"Failed to resolve $json")
+      case _ => JsError(s"Failed to resolve $json")
     }
   }
 
@@ -68,3 +68,13 @@ object NotificationStatus {
 }
 
 case class Notification(endpoint: String, message: String, messageId: Option[String] = Some(UUID.randomUUID().toString), status: NotificationStatus = Queued)
+
+object Notification {
+  implicit val writes = new Writes[Notification] {
+    def writes(notification: Notification) = Json.obj(
+      "id" -> notification.messageId,
+      "endpoint" -> notification.endpoint,
+      "message" -> notification.message
+    )
+  }
+}
