@@ -27,7 +27,7 @@ import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-@ImplementedBy(classOf[MobileMessagesService])
+@ImplementedBy(classOf[NotificationsService])
 trait NotificationsServiceApi {
 
   def getUnsentNotifications: Future[Seq[Notification]]
