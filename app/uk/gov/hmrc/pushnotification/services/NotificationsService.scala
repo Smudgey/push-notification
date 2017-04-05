@@ -20,6 +20,7 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.Logger
+import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 
@@ -41,15 +42,23 @@ class NotificationsService @Inject()(repository: PushNotificationRepositoryApi) 
     repository.getUnsentNotifications.map(
       _.map(np =>
         Notification(np.endpoint, np.message, Some(np.messageId), np.status))
-    )
+    ).recover{
+      case e: Exception =>
+        Logger.error(s"Unable to retrieve unsent notifications: ${e.getMessage}")
+        throw new ServiceUnavailableException(s"Unable to retrieve unsent notifications")
+    }
   }
 
   override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]] = {
     val updated = updates.map(s => repository.update(s._1, s._2).map {
       case Right(_) => true
       case Left(msg) =>
-        Logger.warn(s"unable to update notification: $msg")
+        Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
         false
+    }.recover{
+      case e: Exception =>
+        Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
+        throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
     }).toSeq
 
     Future.sequence(updated)
