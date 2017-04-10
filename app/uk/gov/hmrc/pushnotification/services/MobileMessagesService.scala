@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 HM Revenue & Customs
+ * Copyright 2017 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,37 +16,55 @@
 
 package uk.gov.hmrc.pushnotification.services
 
-import uk.gov.hmrc.api.sandbox.FileResource
+import javax.inject.{Inject, Singleton}
+
+import com.google.inject.ImplementedBy
+import play.api.Logger
+import uk.gov.hmrc.api.service.Auditor
+import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
-import uk.gov.hmrc.pushnotification.connector._
-import uk.gov.hmrc.play.audit.model.DataEvent
-import uk.gov.hmrc.play.http.HeaderCarrier
+import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
+import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
+import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
+@ImplementedBy(classOf[MobileMessagesService])
+trait MobileMessagesServiceApi extends Auditor {
+  override val auditConnector = MicroserviceAuditConnector
 
-trait MobileMessagesService {
-  def ping()(implicit hc:HeaderCarrier): Future[Boolean]
+  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[Seq[String]]
 }
 
-trait LiveMobileMessagesService extends MobileMessagesService with Auditor {
-  def authConnector: AuthConnector
+@Singleton
+class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends MobileMessagesServiceApi {
 
-  def ping()(implicit hc:HeaderCarrier): Future[Boolean]
+  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Seq[String]] = {
+    withAudit("sendTemplateMessage", Map.empty) {
+      val auth = authority.getOrElse {
+        return Future.failed(new UnauthorizedException("No Authority record found for request!"))
+      }
 
-}
+      val message = template.complete().getOrElse {
+        Logger.error(s"no such template '${template.name}'")
+        return Future.failed(new BadRequestException(s"No such template '${template.name}'"))
+      }
 
-object SandboxMobileMessagesService extends MobileMessagesService with FileResource {
+      for (
+        endpoints <- connector.endpointsForAuthId(auth.authInternalId);
+        messageIds <- createNotifications(auth.authInternalId, endpoints, message)
+      ) yield messageIds
+    }
+  }
 
-  def ping()(implicit hc:HeaderCarrier): Future[Boolean] = Future.successful(true)
-
-}
-
-object LiveMobileMessagesService extends LiveMobileMessagesService {
-  override val authConnector: AuthConnector = AuthConnector
-
-  val auditConnector: AuditConnector = MicroserviceAuditConnector
-
-  def ping()(implicit hc:HeaderCarrier): Future[Boolean] = Future.successful(true)
+  private def createNotifications(authId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
+    Future.sequence(endpoints.map{ endpoint =>
+      val notification = Notification(endpoint, message)
+      repository.save(authId, notification).map {
+        case Right(n) => n.messageId
+        case Left(e) => throw new ServiceUnavailableException(e)
+      }
+    })
+  }
 }

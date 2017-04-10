@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 HM Revenue & Customs
+ * Copyright 2017 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,20 +16,27 @@
 
 package uk.gov.hmrc.pushnotification.connector
 
-import play.api.{Logger, Play}
+import javax.inject.{Inject, Named, Singleton}
+
+import com.google.inject.ImplementedBy
 import play.api.libs.json.JsValue
-import uk.gov.hmrc.pushnotification.config.WSHttp
+import uk.gov.hmrc.domain.Nino
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.config.ServicesConfig
-import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, HttpGet, UnauthorizedException}
+import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, HttpGet}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait AuthConnector {
 
-  import uk.gov.hmrc.pushnotification.domain.Accounts
-  import uk.gov.hmrc.domain.{Nino, SaUtr}
-  import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
+class NinoNotFoundOnAccount(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+
+class NoInternalId(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+
+class AccountWithLowCL(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+
+case class Authority(nino: Nino, cl: ConfidenceLevel, authInternalId: String)
+
+@ImplementedBy(classOf[AuthConnector])
+trait AuthConnectorApi {
 
   val serviceUrl: String
 
@@ -37,52 +44,48 @@ trait AuthConnector {
 
   def serviceConfidenceLevel: ConfidenceLevel
 
-  def accounts()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Accounts] = {
+  def grantAccess()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Authority] = {
+    for (
+      (nino, cl, oid) <- getAuthority;
+      id <- getAuthInternalId(oid)
+    ) yield Authority(nino, cl, id)
+  }
+
+  private def getAuthority()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[(Nino, ConfidenceLevel, String)] =
     http.GET(s"$serviceUrl/auth/authority") map {
-      resp =>
+      resp => {
         val json = resp.json
-        confirmConfiendenceLevel(json)
+        val cl = confirmConfidenceLevel(json)
+        val ids = (json \ "ids").as[String]
+        val nino = (json \ "accounts" \ "paye" \ "nino").asOpt[String]
 
-        val accounts = json \ "accounts"
+        if ((json \ "accounts" \ "paye" \ "nino").asOpt[String].isEmpty)
+          throw new NinoNotFoundOnAccount("The user must have a National Insurance Number")
 
-        val utr = (accounts \ "sa" \ "utr").asOpt[String]
-
-        val nino = (accounts \ "paye" \ "nino").asOpt[String]
-
-        val acc = Accounts(nino.map(Nino(_)), utr.map(SaUtr(_)))
-        acc match {
-          case Accounts(None, _) => {
-            //TODO add a metric for this ????
-            Logger.warn("User without a NINO has accessed the service this should not be possible")
-            throw new UnauthorizedException("The user must have a National Insurance Number")
-          }
-          case _ => acc
-        }
+        (Nino(nino.get), ConfidenceLevel.fromInt(cl), ids)
+      }
     }
-  }
 
-  def hasNino()(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[Unit] = {
-    http.GET(s"$serviceUrl/auth/authority") map {
-      resp =>
-        if((resp.json \ "accounts" \ "paye" \ "nino").asOpt[String].isEmpty)
-          throw new UnauthorizedException("The user must have a National Insurance Number to access this service")
+  private def getAuthInternalId(ids: String)(implicit hc: HeaderCarrier, ec: ExecutionContext): Future[String] =
+    http.GET(s"$serviceUrl$ids") map {
+      resp => {
+        val json = resp.json
+        if ((json \ "internalId").asOpt[String].isEmpty)
+          throw new NoInternalId("The user must have an internal id")
+
+        (json \ "internalId").as[String]
+      }
     }
-  }
 
-  private def confirmConfiendenceLevel(jsValue : JsValue) = {
+  private def confirmConfidenceLevel(jsValue: JsValue): Int = {
     val usersCL = (jsValue \ "confidenceLevel").as[Int]
     if (serviceConfidenceLevel.level > usersCL) {
       throw new ForbiddenException("The user does not have sufficient permissions to access this service")
     }
+    usersCL
   }
+
 }
 
-object AuthConnector extends AuthConnector with ServicesConfig {
-
-  import play.api.Play.current
-
-  val serviceUrl = baseUrl("auth")
-  val http = WSHttp
-  val serviceConfidenceLevel: ConfidenceLevel = ConfidenceLevel.fromInt(Play.configuration.getInt("controllers.confidenceLevel")
-    .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level")))
-}
+@Singleton
+class AuthConnector @Inject() (@Named("authUrl") val serviceUrl: String, val serviceConfidenceLevel: ConfidenceLevel, val http: HttpGet) extends AuthConnectorApi

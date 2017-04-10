@@ -1,3 +1,6 @@
 # microservice specific routes
 
-GET         /messages                                       uk.gov.hmrc.pushnotification.controllers.LiveCustomerProfileController.ping()
+POST   /messages                @uk.gov.hmrc.pushnotification.controllers.MobileMessagesController.sendTemplateMessage(journeyId: Option[String] = None)
+
+GET    /notifications/unsent    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getUnsentNotifications
+POST   /notifications/status    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()

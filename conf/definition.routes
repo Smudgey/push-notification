@@ -1,4 +1,6 @@
-GET        /api/definition                                  uk.gov.hmrc.api.controllers.DocumentationController.definition()
 
-GET        /api/documentation/:version/:endpointName        uk.gov.hmrc.api.controllers.DocumentationController.documentation(version:String,endpointName:String)
+GET        /api/definition                                       uk.gov.hmrc.api.controllers.DocumentationController.definition()
 
+GET        /api/documentation/:version/:endpointName             uk.gov.hmrc.api.controllers.DocumentationController.documentation(version:String,endpointName:String)
+
+GET        /api/conf/:version/*file                              uk.gov.hmrc.api.controllers.DocumentationController.conf(version, file)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 HM Revenue & Customs
+ * Copyright 2017 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@
 package uk.gov.hmrc.pushnotification.domain
 
 import play.api.libs.json.Json
-import uk.gov.hmrc.domain.{Nino, SaUtr}
 
-case class Accounts(nino: Option[Nino], saUtr: Option[SaUtr])
+case class Template(name: String, params: String*) {
+  private val templates: Map[String, String] = Map("hello" -> "Hello %", "bye" -> "Goodbye!", "more" -> "% more %")
 
-object Accounts {
-  implicit val accountsFmt = {
-    import Nino.{ninoRead, ninoWrite}
-    import SaUtr.{saUtrRead, saUtrWrite}
-
-    Json.format[Accounts]
+  def complete(): Option[String] = {
+    templates.find(_._1 == name).map(t => params.foldLeft(t._2)((s, p) => s.replaceFirst("%", p)))
   }
+}
+
+object Template {
+  implicit val formats = Json.format[Template]
 }
