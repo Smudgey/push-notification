@@ -73,7 +73,7 @@ object Notification {
   implicit val writes = new Writes[Notification] {
     def writes(notification: Notification) = Json.obj(
       "id" -> notification.messageId,
-      "endpoint" -> notification.endpoint,
+      "endpointArn" -> notification.endpoint,
       "message" -> notification.message
     )
   }

@@ -88,8 +88,8 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
         """[
-          |{"id":"msg-id-1","endpoint":"end:point:a","message":"Hello world"},
-          |{"id":"msg-id-2","endpoint":"end:point:b","message":"Goodbye"}
+          |{"id":"msg-id-1","endpointArn":"end:point:a","message":"Hello world"},
+          |{"id":"msg-id-2","endpointArn":"end:point:b","message":"Goodbye"}
           |]""".stripMargin)
     }
 
