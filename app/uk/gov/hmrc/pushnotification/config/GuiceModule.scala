@@ -41,6 +41,7 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
 
     bind(classOf[String]).annotatedWith(named("pushRegistrationUrl")).toInstance(baseUrl("push-registration"))
     bind(classOf[String]).annotatedWith(named("authUrl")).toInstance(baseUrl("auth"))
+    bind(classOf[Int]).annotatedWith(named("sendNotificationMaxRetryAttempts")).toInstance(configuration.getInt("sendNotificationMaxRetryAttempts").getOrElse(3))
 
     bind(classOf[ConfidenceLevel]).toInstance(ConfidenceLevel.fromInt(configuration.getInt("controllers.confidenceLevel")
       .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level"))))

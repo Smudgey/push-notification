@@ -31,7 +31,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
 
-  val repository: PushNotificationMongoRepository = new PushNotificationMongoRepository(mongo())
+  val maxRetryAttempts = 5
+
+  val repository: PushNotificationMongoRepository = new PushNotificationMongoRepository(mongo(), maxRetryAttempts)
 
   trait Setup {
     val someAuthId = "some-auth-id"
@@ -80,6 +82,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
           actual.message shouldBe notification.message
           actual.messageId shouldBe notification.messageId.get
           actual.status shouldBe notification.status
+          actual.attempts shouldBe 0
         case Left(e) => fail(e)
       }
     }
@@ -100,16 +103,19 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       result.head.endpoint shouldBe someEndpoint
       result.head.message shouldBe someMessage
       result.head.status shouldBe Queued
+      result.head.attempts shouldBe 0
 
       result(1).authId shouldBe otherAuthId
       result(1).endpoint shouldBe someEndpoint
       result(1).message shouldBe otherMessage
       result(1).status shouldBe Queued
+      result(1).attempts shouldBe 0
 
       result(2).authId shouldBe otherAuthId
       result(2).endpoint shouldBe otherEndpoint
       result(2).message shouldBe otherMessage
       result(2).status shouldBe Queued
+      result(2).attempts shouldBe 0
     }
 
     "update existing notifications given a notification with an existing message id" in new Setup {
@@ -132,6 +138,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
           actual.messageId shouldBe existing.messageId
           actual.message shouldBe otherMessage
           actual.status shouldBe Delivered
+          actual.attempts shouldBe 0
         case Left(e) => fail(e)
       }
 
@@ -159,6 +166,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
         case Right(actual) =>
           actual.messageId shouldBe existing.messageId
           actual.status shouldBe Disabled
+          actual.attempts shouldBe 0
         case Left(e) => fail(e)
       }
 
@@ -184,7 +192,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       }
     }
 
-    "find unsent notifications and set these to 'sent'" in new Setup {
+    "find unsent notifications, set these to 'sent' and increment attempts by 1" in new Setup {
       await {
         repository.save(someAuthId, Notification(someEndpoint, someMessage))
         repository.save(someAuthId, Notification(otherEndpoint, someMessage))
@@ -199,7 +207,9 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       result.size shouldBe 2
       result.head.endpoint shouldBe someEndpoint
+      result.head.attempts shouldBe 1
       result(1).endpoint shouldBe otherEndpoint
+      result(1).attempts shouldBe 1
 
       val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
       val delivered: Seq[NotificationPersist] = await(repository.findByStatus(Delivered))
@@ -208,7 +218,34 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       sent.size shouldBe 2
       delivered.size shouldBe 1
+      delivered.head.attempts shouldBe 0
       stillQueued.size shouldBe 0
+    }
+
+    "not return notifications that have exceeded the maximum number of attempts" in new Setup {
+      await {
+        repository.save(someAuthId, Notification(someEndpoint, someMessage))
+        repository.save(someAuthId, Notification(otherEndpoint, someMessage))
+      }
+
+      val initiallyQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
+
+      initiallyQueued.size shouldBe 2
+
+      for (_ <- 1 to maxRetryAttempts + 1) {
+        val someQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+        
+        someQueued.forall { n =>
+          await(repository.update(n.messageId, Queued)) match {
+            case Right(_) => true
+            case _ => false
+          }
+        } shouldBe true
+      }
+
+      val finallyQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+
+      finallyQueued.size shouldBe 0
     }
   }
 }
