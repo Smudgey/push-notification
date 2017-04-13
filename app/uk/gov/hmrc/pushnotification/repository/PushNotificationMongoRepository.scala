@@ -16,24 +16,24 @@
 
 package uk.gov.hmrc.pushnotification.repository
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, JsNumber, Json}
 import reactivemongo.api.commands.UpdateWriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
-import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Queued, Sent, queued, sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{queued, sent}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class NotificationPersist(id: BSONObjectID, authId: String, endpoint: String, message: String, messageId: String, status: NotificationStatus)
+case class NotificationPersist(id: BSONObjectID, authId: String, endpoint: String, message: String, messageId: String, status: NotificationStatus, attempts: Int = 0)
 
 object NotificationPersist {
   val mongoFormats: Format[NotificationPersist] = ReactiveMongoFormats.mongoEntity({
@@ -43,7 +43,7 @@ object NotificationPersist {
 }
 
 @Singleton
-class PushNotificationMongoRepository @Inject() (mongo: DB)
+class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotificationMaxRetryAttempts") maxAttempts: Int)
   extends ReactiveRepository[NotificationPersist, BSONObjectID]("notification", () => mongo, NotificationPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
     with AtomicUpdate[NotificationPersist]
     with PushNotificationRepositoryApi
@@ -97,16 +97,11 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
       collect[Seq]()
 
   override def getUnsentNotifications: Future[Seq[NotificationPersist]] = {
-    val updated = BSONDateTime(DateTimeUtils.now.getMillis)
+    val updated: BSONDateTime = BSONDateTime(DateTimeUtils.now.getMillis)
 
     val update: Future[UpdateWriteResult] = collection.update(
-      BSONDocument("status" -> queued),
-      BSONDocument(
-        "$set" -> BSONDocument(
-          "updated" -> updated,
-          "status" -> sent
-        )
-      ),
+      findUnsent(),
+      setSent(updated),
       upsert = false,
       multi = true
     )
@@ -130,6 +125,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
     }
     val coreData = BSONDocument(
       "$setOnInsert" -> BSONDocument("authId" -> authId),
+      "$setOnInsert" -> BSONDocument("attempts" -> 0),
       "$setOnInsert" -> BSONDocument("endpoint" -> notification.endpoint),
       "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis)),
 
@@ -141,12 +137,22 @@ class PushNotificationMongoRepository @Inject() (mongo: DB)
   }
 
   def findUnsent(): BSONDocument =
-    BSONDocument("status" -> Queued.toString)
-
-  def setSent(): BSONDocument =
     BSONDocument(
-      "$set" -> BSONDocument("status" -> Sent.toString),
-      "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
+      "$and" -> BSONArray(
+        BSONDocument("status" -> queued),
+        BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
+      )
+    )
+
+  def setSent(updated: BSONDateTime): BSONDocument =
+    BSONDocument(
+      "$set" -> BSONDocument(
+        "updated" -> updated,
+        "status" -> sent
+      ),
+      "$inc" -> BSONDocument(
+        "attempts" -> 1
+      )
     )
 }
 
