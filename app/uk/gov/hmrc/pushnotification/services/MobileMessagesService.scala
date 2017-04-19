@@ -35,13 +35,13 @@ import scala.concurrent.Future
 trait MobileMessagesServiceApi extends Auditor {
   override val auditConnector = MicroserviceAuditConnector
 
-  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[Seq[String]]
+  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[String]
 }
 
 @Singleton
 class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends MobileMessagesServiceApi {
 
-  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Seq[String]] = {
+  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String] = {
     withAudit("sendTemplateMessage", Map.empty) {
       val auth = authority.getOrElse {
         return Future.failed(new UnauthorizedException("No Authority record found for request!"))
@@ -53,14 +53,14 @@ class MobileMessagesService @Inject() (connector: PushRegistrationConnector, rep
       }
 
       for (
+        messageId <- Future(UUID.randomUUID().toString);
         endpoints <- connector.endpointsForAuthId(auth.authInternalId);
-        notificationIds <- createNotifications(auth.authInternalId, endpoints, message)
-      ) yield notificationIds
+        _ <- createNotifications(auth.authInternalId, messageId, endpoints, message)
+      ) yield messageId
     }
   }
 
-  private def createNotifications(authId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
-    val messageId = UUID.randomUUID().toString
+  private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
     Future.sequence(endpoints.map{ endpoint =>
       val notification = Notification(messageId, endpoint = endpoint, content = message, callbackUrl = None)
       repository.save(authId, notification).map {

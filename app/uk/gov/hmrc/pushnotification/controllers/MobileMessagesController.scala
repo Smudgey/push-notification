@@ -52,7 +52,7 @@ class MobileMessagesController @Inject() (service: MobileMessagesServiceApi, acc
         },
         template => {
           errorWrapper(service.sendTemplateMessage(template)(hc, authenticated.authority).map {
-            s: Seq[String] => Created(Json.toJson(s))
+            id: String => Created(Json.obj("messageId" -> id))
           })
         }
       )

@@ -16,11 +16,15 @@
 
 package uk.gov.hmrc.pushnotification.services
 
+import java.util.UUID
+
 import org.mockito.ArgumentMatchers.{any, matches}
-import org.mockito.Mockito.{doAnswer, doReturn}
+import org.mockito.Mockito.{doAnswer, doReturn, times, verify}
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
+import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.mockito.MockitoSugar
 import play.api.test.FakeApplication
 import reactivemongo.bson.BSONObjectID
@@ -32,6 +36,7 @@ import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnec
 import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
 import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationRepositoryApi}
 
+import scala.collection.JavaConversions._
 import scala.concurrent.Future.{failed, successful}
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -63,17 +68,24 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
         val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
-        successful(Right(NotificationPersist(BSONObjectID.generate, "some-message-id", actualAuthId, actualNotification.endpoint, actualNotification.content, None, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
+        successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, None, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
       }
     }).when(mockRepository).save(matches(someAuth.authInternalId),any[Notification]())
   }
 
   "MobileMessagesService sendTemplateMessage" should {
-    "return a list of message ids given a valid template name and an authority with endpoints" in new Setup {
-      val result = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
+    "return a message id given a valid template name and an authority with endpoints" in new Setup {
+      val notificationCaptor: ArgumentCaptor[Notification] = ArgumentCaptor.forClass(classOf[Notification])
 
-      result.size shouldBe 3
-      result shouldBe endpoints.map(_ + "-ntfy-id")
+      val result: String = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
+
+      verify(mockRepository, times(endpoints.size)).save(ArgumentMatchers.any[String](), notificationCaptor.capture())
+
+      val actualNotifications = asScalaBuffer(notificationCaptor.getAllValues)
+
+      endpoints.forall{ ep => actualNotifications.count{ n => n.endpoint == ep & n.messageId == result } == 1 } shouldBe true
+
+      result should BeGuid
     }
 
     "throw an unauthorized exception given an empty authority" in new Setup {
@@ -110,4 +122,20 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
       result.getMessage shouldBe "Failed to save the thing"
     }
   }
+
+  class GUIDMatcher extends Matcher[String] {
+    def apply(maybeGuid: String): MatchResult = {
+      val result = try {
+        UUID.fromString(maybeGuid)
+        true
+      } catch {
+        case _: Exception => false
+      }
+      MatchResult(result,
+        s"$maybeGuid is not a GUID",
+        s"$maybeGuid is a GUID but it shouldn't be")
+    }
+  }
+
+  def BeGuid = new GUIDMatcher
 }

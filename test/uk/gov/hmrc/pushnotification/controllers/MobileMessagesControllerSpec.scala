@@ -67,12 +67,12 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
 
   private trait Success extends Setup {
       when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
-      when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(List("foo", "bar")))
+      when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("foo"))
   }
 
   private trait AuthFailure extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(throw new NoInternalId("missing internal id")))
-    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(List("foo", "bar")))
+    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("bar"))
   }
 
   private trait TemplateFailure extends Setup {
@@ -91,7 +91,7 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 201
-      jsonBodyOf(result) shouldBe Json.parse("""["foo","bar"]""")
+      jsonBodyOf(result) shouldBe Json.parse("""{"messageId":"foo"}""")
     }
 
 
@@ -100,7 +100,7 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
        val result: Result = await(controller.sendTemplateMessage(Some("journey-id"))(messageRequest))
 
        status(result) shouldBe 201
-       jsonBodyOf(result) shouldBe Json.parse("""["foo","bar"]""")
+       jsonBodyOf(result) shouldBe Json.parse("""{"messageId":"foo"}""")
      }
 
     "return 400 bad request given an invalid request" in new Success {
