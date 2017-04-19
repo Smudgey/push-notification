@@ -33,7 +33,7 @@ import uk.gov.hmrc.time.DateTimeUtils
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class NotificationPersist(id: BSONObjectID, authId: String, endpoint: String, message: String, messageId: String, status: NotificationStatus, attempts: Int = 0)
+case class NotificationPersist(id: BSONObjectID, messageId: String, authId: String, endpoint: String, content: String, callbackUrl: Option[String], notificationId: String, status: NotificationStatus, attempts: Int)
 
 object NotificationPersist {
   val mongoFormats: Format[NotificationPersist] = ReactiveMongoFormats.mongoEntity({
@@ -54,7 +54,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     Future.sequence(
       Seq(
         collection.indexesManager.ensure(
-          Index(Seq("messageId" -> IndexType.Ascending), name = Some("messageIdUnique"), unique = true, sparse = true)),
+          Index(Seq("messageId" -> IndexType.Ascending), name = Some("messageIdNotUnique"), unique = false)),
+        collection.indexesManager.ensure(
+          Index(Seq("notificationId" -> IndexType.Ascending), name = Some("notificationIdUnique"), unique = true, sparse = true)),
         collection.indexesManager.ensure(
           Index(Seq("authId" -> IndexType.Ascending), name = Some("authIdNotUnique"), unique = false)),
         collection.indexesManager.ensure(
@@ -68,7 +70,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: NotificationPersist): Boolean = newRecordId.equals(oldRecord.id)
 
   override def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]] = {
-    atomicUpsert(findNotificationByMessageId(notification.messageId), insertNotification(authId, notification)).map { r =>
+    atomicUpsert(findNotificationByNotificationId(notification.notificationId), insertNotification(authId, notification)).map { r =>
       if (r.writeResult.ok) {
         Right(r.updateType.savedValue)
       } else {
@@ -77,15 +79,15 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     }
   }
 
-  override def update(messageId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]] = {
-    atomicUpdate(findNotificationByMessageId(Some(messageId)), updateStatus(status)).map { maybeUpdate =>
+  override def update(notificationId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]] = {
+    atomicUpdate(findNotificationByNotificationId(Some(notificationId)), updateStatus(status)).map { maybeUpdate =>
       maybeUpdate.map { update =>
         if (update.writeResult.ok) {
           Right(update.updateType.savedValue)
         } else {
           Left(update.writeResult.message)
         }
-      }.getOrElse(Left(s"Cannot find message with id = $messageId"))
+      }.getOrElse(Left(s"Cannot find notification with id = $notificationId"))
     }
   }
 
@@ -115,25 +117,29 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     }
   }
 
-  def findNotificationByMessageId(messageId: Option[String]) = BSONDocument("messageId" -> messageId.getOrElse("-1"))
+  def findNotificationByNotificationId(notificationId: Option[String]) = BSONDocument("notificationId" -> notificationId.getOrElse("-1"))
 
   def updateStatus(status: NotificationStatus) = BSONDocument("$set" -> BSONDocument("status" -> status.toString))
 
   def insertNotification(authId: String, notification: Notification): BSONDocument = {
-    val messageId = notification.messageId.fold(BSONDocument.empty) { id =>
-      BSONDocument("$setOnInsert" -> BSONDocument("messageId" -> id))
+    val notificationId = notification.notificationId.fold(BSONDocument.empty) { id =>
+      BSONDocument("$setOnInsert" -> BSONDocument("notificationId" -> id))
+    }
+    val callbackUrl = notification.callbackUrl.fold(BSONDocument.empty) { url =>
+      BSONDocument("$setOnInsert" -> BSONDocument("callbackUrl" -> url))
     }
     val coreData = BSONDocument(
+      "$setOnInsert" -> BSONDocument("messageId" -> notification.messageId),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
       "$setOnInsert" -> BSONDocument("attempts" -> 0),
       "$setOnInsert" -> BSONDocument("endpoint" -> notification.endpoint),
       "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis)),
 
-      "$set" -> BSONDocument("message" -> notification.message),
+      "$set" -> BSONDocument("content" -> notification.content),
       "$set" -> BSONDocument("status" -> notification.status.toString),
       "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
-    messageId ++ coreData
+    notificationId ++ coreData ++ callbackUrl
   }
 
   def findUnsent(): BSONDocument =
@@ -160,7 +166,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
 trait PushNotificationRepositoryApi {
   def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
 
-  def update(messageId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]]
+  def update(notificationId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 

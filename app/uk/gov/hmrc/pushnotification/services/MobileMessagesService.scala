@@ -16,6 +16,7 @@
 
 package uk.gov.hmrc.pushnotification.services
 
+import java.util.UUID
 import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
@@ -53,16 +54,17 @@ class MobileMessagesService @Inject() (connector: PushRegistrationConnector, rep
 
       for (
         endpoints <- connector.endpointsForAuthId(auth.authInternalId);
-        messageIds <- createNotifications(auth.authInternalId, endpoints, message)
-      ) yield messageIds
+        notificationIds <- createNotifications(auth.authInternalId, endpoints, message)
+      ) yield notificationIds
     }
   }
 
   private def createNotifications(authId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
+    val messageId = UUID.randomUUID().toString
     Future.sequence(endpoints.map{ endpoint =>
-      val notification = Notification(endpoint, message)
+      val notification = Notification(messageId, endpoint = endpoint, content = message, callbackUrl = None)
       repository.save(authId, notification).map {
-        case Right(n) => n.messageId
+        case Right(n) => n.notificationId
         case Left(e) => throw new ServiceUnavailableException(e)
       }
     })

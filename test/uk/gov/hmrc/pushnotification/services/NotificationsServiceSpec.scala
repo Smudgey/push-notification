@@ -37,23 +37,24 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
 
     val service = new NotificationsService(mockRepository)
 
+    val someMessageId = "msg-id-abcd-1234"
     val someAuthId = "bob-id"
     val someEndpoint = "foo:bar:baz"
     val otherEndpoint = "wibble:wubble:wobble"
-    val someMessage = "a very important message"
-    val someMessageId = "msg-id-1"
-    val otherMessageId = "msg-id-2"
+    val someContent = "a very important message"
+    val someNotificationId = "msg-id-1"
+    val otherNotificationId = "msg-id-2"
 
-    val somePersisted = NotificationPersist(BSONObjectID.generate, someAuthId, someEndpoint, someMessage, someMessageId, Sent)
-    val otherPersisted = NotificationPersist(BSONObjectID.generate, someAuthId, otherEndpoint, someMessage, otherMessageId, Sent)
+    val somePersisted = NotificationPersist(BSONObjectID.generate, someMessageId, someAuthId, someEndpoint, someContent, None, someNotificationId, Sent, 1)
+    val otherPersisted = NotificationPersist(BSONObjectID.generate, someMessageId, someAuthId, otherEndpoint, someContent, None, otherNotificationId, Sent, 2)
 
-    val updates = Map(someMessageId -> Delivered, otherMessageId -> Queued)
+    val updates = Map(someNotificationId -> Delivered, otherNotificationId -> Queued)
   }
 
   private trait Success extends Setup {
     doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(mockRepository).getUnsentNotifications
-    doReturn(successful(Right(somePersisted)), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(someMessageId), any[NotificationStatus]())
-    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(otherMessageId), any[NotificationStatus]())
+    doReturn(successful(Right(somePersisted)), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(someNotificationId), any[NotificationStatus]())
+    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(otherNotificationId), any[NotificationStatus]())
   }
 
   private trait Failed extends Setup {

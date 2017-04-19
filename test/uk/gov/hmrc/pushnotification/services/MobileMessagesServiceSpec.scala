@@ -63,7 +63,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
         val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
-        successful(Right(NotificationPersist(BSONObjectID.generate, actualAuthId, actualNotification.endpoint, actualNotification.message, actualNotification.endpoint + "-id", actualNotification.status)))
+        successful(Right(NotificationPersist(BSONObjectID.generate, "some-message-id", actualAuthId, actualNotification.endpoint, actualNotification.content, None, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
       }
     }).when(mockRepository).save(matches(someAuth.authInternalId),any[Notification]())
   }
@@ -73,7 +73,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
       val result = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
 
       result.size shouldBe 3
-      result shouldBe endpoints.map(_ + "-id")
+      result shouldBe endpoints.map(_ + "-ntfy-id")
     }
 
     "throw an unauthorized exception given an empty authority" in new Setup {

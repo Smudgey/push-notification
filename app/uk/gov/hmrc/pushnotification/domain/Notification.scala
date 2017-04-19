@@ -67,14 +67,14 @@ object NotificationStatus {
   implicit val formats = Format(NotificationStatus.reads, NotificationStatus.writes)
 }
 
-case class Notification(endpoint: String, message: String, messageId: Option[String] = Some(UUID.randomUUID().toString), status: NotificationStatus = Queued)
+case class Notification(messageId: String, endpoint: String, content: String, callbackUrl: Option[String] = None, notificationId: Option[String] = Some(UUID.randomUUID().toString), status: NotificationStatus = Queued)
 
 object Notification {
   implicit val writes = new Writes[Notification] {
     def writes(notification: Notification) = Json.obj(
-      "id" -> notification.messageId,
+      "id" -> notification.notificationId,
       "endpointArn" -> notification.endpoint,
-      "message" -> notification.message
+      "message" -> notification.content
     )
   }
 }

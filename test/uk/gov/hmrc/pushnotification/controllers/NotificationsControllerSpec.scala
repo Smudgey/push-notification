@@ -29,8 +29,8 @@ import play.api.test.{FakeApplication, FakeRequest}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
-import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Sent}
+import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.services.NotificationsServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -60,10 +60,10 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
   }
 
   private trait Success extends Setup {
-    val someMessage = Notification("end:point:a", "Hello world", Some("msg-id-1"), Sent)
-    val otherMessage = Notification("end:point:b", "Goodbye", Some("msg-id-2"), Sent)
+    val someNotification = Notification(messageId = "msg-id-1", endpoint = "end:point:a", content = "Hello world", notificationId = Some("ntfy-id-1"), status = Sent)
+    val otherNotification = Notification(messageId = "msg-id-1", endpoint = "end:point:b", content = "Goodbye", notificationId = Some("ntfy-id-2"), status = Sent)
 
-    when(mockService.getUnsentNotifications).thenReturn(Future(Seq(someMessage, otherMessage)))
+    when(mockService.getUnsentNotifications).thenReturn(Future(Seq(someNotification, otherNotification)))
     when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, true, true)))
   }
 
@@ -88,8 +88,8 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
         """[
-          |{"id":"msg-id-1","endpointArn":"end:point:a","message":"Hello world"},
-          |{"id":"msg-id-2","endpointArn":"end:point:b","message":"Goodbye"}
+          |{"id":"ntfy-id-1","endpointArn":"end:point:a","message":"Hello world"},
+          |{"id":"ntfy-id-2","endpointArn":"end:point:b","message":"Goodbye"}
           |]""".stripMargin)
     }
 
