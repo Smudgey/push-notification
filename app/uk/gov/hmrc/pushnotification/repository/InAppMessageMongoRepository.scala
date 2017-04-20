@@ -20,7 +20,7 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, Json}
-import reactivemongo.api.DB
+import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
@@ -61,7 +61,7 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: MessagePersist): Boolean = newRecordId.equals(oldRecord.id)
 
   override def save(authId: String, message: Message): Future[Either[String, MessagePersist]] =
-    atomicUpsert(findMessageByMessageId(message.messageId), insertMessage(authId, message)).map { r =>
+    atomicUpsert(findDocumentByMessageId(message.messageId), insertMessage(authId, message)).map { r =>
     if (r.writeResult.ok) {
       Right(r.updateType.savedValue)
     } else {
@@ -69,7 +69,14 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
     }
   }
 
-  def findMessageByMessageId(messageId: String): BSONDocument = BSONDocument("messageId" -> messageId)
+  override def find(messageId: String): Future[Option[MessagePersist]] =
+    collection.
+      find(Json.obj("messageId" -> messageId)).
+      cursor[MessagePersist](ReadPreference.primaryPreferred).
+      collect[Seq]().
+      map(_.headOption)
+
+  def findDocumentByMessageId(messageId: String): BSONDocument = BSONDocument("messageId" -> messageId)
 
   def insertMessage(authId: String, message: Message): BSONDocument =
     BSONDocument(
@@ -88,4 +95,5 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
 @ImplementedBy(classOf[InAppMessageMongoRepository])
 trait InAppMessageRepositoryApi {
   def save(authId: String, message: Message): Future[Either[String, MessagePersist]]
+  def find(messageId: String): Future[Option[MessagePersist]]
 }

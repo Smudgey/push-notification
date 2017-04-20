@@ -107,5 +107,44 @@ class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport wit
         case Left(e) => fail(e)
       }
     }
+
+    "find a message given a message id" in new Setup {
+      val saved: Seq[Either[String, MessagePersist]] =
+        Seq(
+          await(repository.save(someAuthId, Message(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
+          await(repository.save(otherAuthId, Message(subject = someSubject, body = someBody, callbackUrl = otherUrl, responses = someResponses))),
+          await(repository.save(someAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
+        )
+
+      saved.count(_.isRight) shouldBe 3
+
+      val savedMessage = saved(1).right.get
+
+      val result = await(repository.find(savedMessage.messageId))
+
+      val foundMessage = result.getOrElse(fail("should have found the saved message"))
+
+      foundMessage.authId shouldBe savedMessage.authId
+      foundMessage.messageId shouldBe savedMessage.messageId
+      foundMessage.subject shouldBe savedMessage.subject
+      foundMessage.body shouldBe savedMessage.body
+      foundMessage.callbackUrl shouldBe savedMessage.callbackUrl
+      foundMessage.responses shouldBe savedMessage.responses
+    }
+
+    "not find a message given a non-existent message id" in new Setup {
+      val saved: Seq[Either[String, MessagePersist]] =
+        Seq(
+          await(repository.save(someAuthId, Message(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
+          await(repository.save(someAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses))),
+          await(repository.save(otherAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
+        )
+
+      saved.count(_.isRight) shouldBe 3
+
+      val result = await(repository.find("does-not-exist-message-id"))
+
+      result.isDefined shouldBe false
+    }
   }
 }
