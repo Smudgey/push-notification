@@ -68,7 +68,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
         val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
-        successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, None, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
+        successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
       }
     }).when(mockRepository).save(matches(someAuth.authInternalId),any[Notification]())
   }

@@ -63,8 +63,8 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       a[DatabaseException] should be thrownBy await(repository.insert(actual.right.get))
     }
 
-    "be able to insert multiple notifications with the same messageId, authId, endpoint, status, and callbackUrl" in new Setup {
-      val notification = Notification(messageId = someMessageId, endpoint = someEndpoint, content = "Hello world", callbackUrl = someUrl)
+    "be able to insert multiple notifications with the same messageId, authId, endpoint, and status" in new Setup {
+      val notification = Notification(messageId = someMessageId, endpoint = someEndpoint, content = "Hello world")
 
       val actual: Either[String, NotificationPersist] = await(repository.save(someAuthId, notification))
 
@@ -85,7 +85,6 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
           actual.content shouldBe notification.content
           actual.notificationId shouldBe notification.notificationId.get
           actual.status shouldBe notification.status
-          actual.callbackUrl shouldBe notification.callbackUrl
           actual.attempts shouldBe 0
         case Left(e) => fail(e)
       }
@@ -155,7 +154,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       await {
         repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent))
         repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, callbackUrl = someUrl))
+        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent))
       }
 
       val saved: Seq[NotificationPersist] = await(repository.findByStatus(Queued))

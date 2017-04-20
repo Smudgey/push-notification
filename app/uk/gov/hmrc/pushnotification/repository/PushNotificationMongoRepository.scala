@@ -33,7 +33,7 @@ import uk.gov.hmrc.time.DateTimeUtils
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class NotificationPersist(id: BSONObjectID, messageId: String, authId: String, endpoint: String, content: String, callbackUrl: Option[String], notificationId: String, status: NotificationStatus, attempts: Int)
+case class NotificationPersist(id: BSONObjectID, messageId: String, authId: String, endpoint: String, content: String, notificationId: String, status: NotificationStatus, attempts: Int)
 
 object NotificationPersist {
   val mongoFormats: Format[NotificationPersist] = ReactiveMongoFormats.mongoEntity({
@@ -125,9 +125,6 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     val notificationId = notification.notificationId.fold(BSONDocument.empty) { id =>
       BSONDocument("$setOnInsert" -> BSONDocument("notificationId" -> id))
     }
-    val callbackUrl = notification.callbackUrl.fold(BSONDocument.empty) { url =>
-      BSONDocument("$setOnInsert" -> BSONDocument("callbackUrl" -> url))
-    }
     val coreData = BSONDocument(
       "$setOnInsert" -> BSONDocument("messageId" -> notification.messageId),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
@@ -139,7 +136,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       "$set" -> BSONDocument("status" -> notification.status.toString),
       "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
-    notificationId ++ coreData ++ callbackUrl
+    notificationId ++ coreData
   }
 
   def findUnsent(): BSONDocument =

@@ -62,7 +62,7 @@ class MobileMessagesService @Inject() (connector: PushRegistrationConnector, rep
 
   private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
     Future.sequence(endpoints.map{ endpoint =>
-      val notification = Notification(messageId, endpoint = endpoint, content = message, callbackUrl = None)
+      val notification = Notification(messageId, endpoint = endpoint, content = message)
       repository.save(authId, notification).map {
         case Right(n) => n.notificationId
         case Left(e) => throw new ServiceUnavailableException(e)
