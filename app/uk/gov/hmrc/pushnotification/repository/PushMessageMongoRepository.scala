@@ -25,26 +25,26 @@ import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.Message
+import uk.gov.hmrc.pushnotification.domain.PushMessage
 import uk.gov.hmrc.time.DateTimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class MessagePersist(id: BSONObjectID, authId: String, messageId: String, subject: String, body: String, responses: Map[String, String], callbackUrl: String)
+case class PushMessagePersist(id: BSONObjectID, authId: String, messageId: String, subject: String, body: String, responses: Map[String, String], callbackUrl: String)
 
-object MessagePersist {
-  val mongoFormats: Format[MessagePersist] = ReactiveMongoFormats.mongoEntity({
+object PushMessagePersist {
+  val mongoFormats: Format[PushMessagePersist] = ReactiveMongoFormats.mongoEntity({
     implicit val oidFormat = ReactiveMongoFormats.objectIdFormats
-    Format(Json.reads[MessagePersist], Json.writes[MessagePersist])
+    Format(Json.reads[PushMessagePersist], Json.writes[PushMessagePersist])
   })
 }
 
 @Singleton
-class InAppMessageMongoRepository @Inject() (mongo: DB)
-  extends ReactiveRepository[MessagePersist, BSONObjectID]("inAppMessage", () => mongo, MessagePersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
-    with AtomicUpdate[MessagePersist]
-    with InAppMessageRepositoryApi
+class PushMessageMongoRepository @Inject()(mongo: DB)
+  extends ReactiveRepository[PushMessagePersist, BSONObjectID]("pushMessage", () => mongo, PushMessagePersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
+    with AtomicUpdate[PushMessagePersist]
+    with PushMessageRepositoryApi
     with BSONBuilderHelpers {
 
   override def ensureIndexes(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
@@ -58,9 +58,9 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
     )
   }
 
-  override def isInsertion(newRecordId: BSONObjectID, oldRecord: MessagePersist): Boolean = newRecordId.equals(oldRecord.id)
+  override def isInsertion(newRecordId: BSONObjectID, oldRecord: PushMessagePersist): Boolean = newRecordId.equals(oldRecord.id)
 
-  override def save(authId: String, message: Message): Future[Either[String, MessagePersist]] =
+  override def save(authId: String, message: PushMessage): Future[Either[String, PushMessagePersist]] =
     atomicUpsert(findDocumentByMessageId(message.messageId), insertMessage(authId, message)).map { r =>
     if (r.writeResult.ok) {
       Right(r.updateType.savedValue)
@@ -69,16 +69,16 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
     }
   }
 
-  override def find(messageId: String): Future[Option[MessagePersist]] =
+  override def find(messageId: String): Future[Option[PushMessagePersist]] =
     collection.
       find(Json.obj("messageId" -> messageId)).
-      cursor[MessagePersist](ReadPreference.primaryPreferred).
+      cursor[PushMessagePersist](ReadPreference.primaryPreferred).
       collect[Seq]().
       map(_.headOption)
 
   def findDocumentByMessageId(messageId: String): BSONDocument = BSONDocument("messageId" -> messageId)
 
-  def insertMessage(authId: String, message: Message): BSONDocument =
+  def insertMessage(authId: String, message: PushMessage): BSONDocument =
     BSONDocument(
       "$setOnInsert" -> BSONDocument("messageId" -> message.messageId),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
@@ -92,8 +92,8 @@ class InAppMessageMongoRepository @Inject() (mongo: DB)
     )
 }
 
-@ImplementedBy(classOf[InAppMessageMongoRepository])
-trait InAppMessageRepositoryApi {
-  def save(authId: String, message: Message): Future[Either[String, MessagePersist]]
-  def find(messageId: String): Future[Option[MessagePersist]]
+@ImplementedBy(classOf[PushMessageMongoRepository])
+trait PushMessageRepositoryApi {
+  def save(authId: String, message: PushMessage): Future[Either[String, PushMessagePersist]]
+  def find(messageId: String): Future[Option[PushMessagePersist]]
 }

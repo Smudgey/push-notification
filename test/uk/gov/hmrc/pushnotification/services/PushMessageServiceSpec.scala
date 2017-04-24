@@ -40,7 +40,7 @@ import scala.collection.JavaConversions._
 import scala.concurrent.Future.{failed, successful}
 import scala.concurrent.{ExecutionContext, Future}
 
-class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplication with StubApplicationConfiguration {
+class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplication with StubApplicationConfiguration {
   override lazy val fakeApplication = FakeApplication(additionalConfiguration = config)
 
   implicit val hc = HeaderCarrier()
@@ -50,7 +50,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
     val mockConnector = mock[PushRegistrationConnector]
     val mockRepository = mock[PushNotificationRepositoryApi]
 
-    val service = new MobileMessagesService(mockConnector, mockRepository)
+    val service = new PushMessageService(mockConnector, mockRepository)
 
     val someAuth = Authority(Nino("CS700100A"), L200, "int-auth-id-1")
     val otherAuth = Authority(Nino("CS700101A"), L200, "int-auth-id-2")
@@ -73,7 +73,7 @@ class MobileMessagesServiceSpec extends UnitSpec with ScalaFutures with WithFake
     }).when(mockRepository).save(matches(someAuth.authInternalId),any[Notification]())
   }
 
-  "MobileMessagesService sendTemplateMessage" should {
+  "PushMessageService sendTemplateMessage" should {
     "return a message id given a valid template name and an authority with endpoints" in new Setup {
       val notificationCaptor: ArgumentCaptor[Notification] = ArgumentCaptor.forClass(classOf[Notification])
 

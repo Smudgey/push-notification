@@ -20,11 +20,11 @@ import java.util.UUID
 
 import play.api.libs.json.{JsObject, Json, Writes}
 
-case class Message(subject: String, body: String, callbackUrl: String, responses: Map[String, String] = Map.empty, messageId: String = UUID.randomUUID().toString)
+case class PushMessage(subject: String, body: String, callbackUrl: String, responses: Map[String, String] = Map.empty, messageId: String = UUID.randomUUID().toString)
 
-object Message {
-  implicit val messageWrites: Writes[Message] = new Writes[Message] {
-    def writes(message: Message): JsObject = {
+object PushMessage {
+  implicit val messageWrites: Writes[PushMessage] = new Writes[PushMessage] {
+    def writes(message: PushMessage): JsObject = {
       val core = Json.obj(
         "id" -> message.messageId,
         "subject" -> message.subject,

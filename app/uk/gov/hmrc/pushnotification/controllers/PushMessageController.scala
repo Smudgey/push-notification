@@ -27,18 +27,18 @@ import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
 import uk.gov.hmrc.pushnotification.domain.Template
-import uk.gov.hmrc.pushnotification.services.MobileMessagesServiceApi
+import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-@ImplementedBy(classOf[MobileMessagesController])
-trait MobileMessagesControllerApi extends BaseController with HeaderValidator with ErrorHandling  {
+@ImplementedBy(classOf[PushMessageController])
+trait PushMessageControllerApi extends BaseController with HeaderValidator with ErrorHandling  {
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
 }
 
 @Singleton
-class MobileMessagesController @Inject() (service: MobileMessagesServiceApi, accessControl: AccountAccessControlWithHeaderCheck) extends MobileMessagesControllerApi {
+class PushMessageController @Inject()(service: PushMessageServiceApi, accessControl: AccountAccessControlWithHeaderCheck) extends PushMessageControllerApi {
   override implicit val ec: ExecutionContext = ExecutionContext.global
 
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {

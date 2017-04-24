@@ -1,6 +1,10 @@
 # microservice specific routes
 
-POST   /messages                @uk.gov.hmrc.pushnotification.controllers.MobileMessagesController.sendTemplateMessage(journeyId: Option[String] = None)
+POST   /messages                @uk.gov.hmrc.pushnotification.controllers.PushMessageController.sendTemplateMessage(journeyId: Option[String] = None)
+
+#GET    /messages/current        @uk.gov.hmrc.pushnotification.controllers.PushMessageController.getCurrentMessages(journeyId: Option[String] = None)
+#POST   /messages/:id            @uk.gov.hmrc.pushnotification.controllers.PushMessageController.acknowledgeMessage(id: String, journeyId: Option[String] = None) // returns message
+#POST   /messages/:id/response   @uk.gov.hmrc.pushnotification.controllers.PushMessageController.respondToMessage(id: String, journeyId: Option[String] = None)
 
 GET    /notifications/unsent    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getUnsentNotifications
 POST   /notifications/status    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()

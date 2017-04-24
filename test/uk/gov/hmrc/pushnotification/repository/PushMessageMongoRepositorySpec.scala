@@ -24,13 +24,13 @@ import reactivemongo.bson.BSONObjectID
 import reactivemongo.core.errors.DatabaseException
 import uk.gov.hmrc.mongo.MongoSpecSupport
 import uk.gov.hmrc.play.test.UnitSpec
-import uk.gov.hmrc.pushnotification.domain.Message
+import uk.gov.hmrc.pushnotification.domain.PushMessage
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
+class PushMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
 
-  val repository: InAppMessageMongoRepository = new InAppMessageMongoRepository(mongo())
+  val repository: PushMessageMongoRepository = new PushMessageMongoRepository(mongo())
 
   trait Setup {
     val someAuthId = "some-auth-id"
@@ -55,29 +55,29 @@ class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport wit
     await(repository.ensureIndexes)
   }
 
-  "InAppMessageMongoRepository indexes" should {
+  "PushMessageMongoRepository indexes" should {
     "not be able to insert duplicate messageIds" in new Setup {
-      val message = Message(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
+      val message = PushMessage(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
 
-      val actual: Either[String, MessagePersist] = await(repository.save(someAuthId, message))
+      val actual: Either[String, PushMessagePersist] = await(repository.save(someAuthId, message))
 
       a[DatabaseException] should be thrownBy await(repository.insert(actual.right.get))
     }
 
     "be able to insert multiple messages with the same authId, subject, body, responses, and callbackUrl" in new Setup {
-      val message = Message(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
+      val message = PushMessage(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
 
-      val actual: Either[String, MessagePersist] = await(repository.save(someAuthId, message))
+      val actual: Either[String, PushMessagePersist] = await(repository.save(someAuthId, message))
 
       await(repository.insert(actual.right.get.copy(id = BSONObjectID.generate, messageId = UUID.randomUUID().toString)))
     }
   }
 
-  "InAppMessageMongoRepository" should {
+  "PushMessageMongoRepository" should {
     "persist messages that include responses" in new Setup {
-      val message = Message(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
+      val message = PushMessage(messageId = someMessageId, subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
 
-      val result: Either[String, MessagePersist] = await(repository.save(someAuthId, message))
+      val result: Either[String, PushMessagePersist] = await(repository.save(someAuthId, message))
 
       result match {
         case Right(actual) =>
@@ -92,9 +92,9 @@ class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport wit
     }
 
     "persist messages that do not include responses" in new Setup {
-      val message = Message(messageId = otherMessageId, subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses)
+      val message = PushMessage(messageId = otherMessageId, subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses)
 
-      val result: Either[String, MessagePersist] = await(repository.save(otherAuthId, message))
+      val result: Either[String, PushMessagePersist] = await(repository.save(otherAuthId, message))
 
       result match {
         case Right(actual) =>
@@ -109,11 +109,11 @@ class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport wit
     }
 
     "find a message given a message id" in new Setup {
-      val saved: Seq[Either[String, MessagePersist]] =
+      val saved: Seq[Either[String, PushMessagePersist]] =
         Seq(
-          await(repository.save(someAuthId, Message(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
-          await(repository.save(otherAuthId, Message(subject = someSubject, body = someBody, callbackUrl = otherUrl, responses = someResponses))),
-          await(repository.save(someAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
+          await(repository.save(someAuthId, PushMessage(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
+          await(repository.save(otherAuthId, PushMessage(subject = someSubject, body = someBody, callbackUrl = otherUrl, responses = someResponses))),
+          await(repository.save(someAuthId, PushMessage(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
         )
 
       saved.count(_.isRight) shouldBe 3
@@ -133,11 +133,11 @@ class InAppMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport wit
     }
 
     "not find a message given a non-existent message id" in new Setup {
-      val saved: Seq[Either[String, MessagePersist]] =
+      val saved: Seq[Either[String, PushMessagePersist]] =
         Seq(
-          await(repository.save(someAuthId, Message(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
-          await(repository.save(someAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses))),
-          await(repository.save(otherAuthId, Message(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
+          await(repository.save(someAuthId, PushMessage(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
+          await(repository.save(someAuthId, PushMessage(subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses))),
+          await(repository.save(otherAuthId, PushMessage(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
         )
 
       saved.count(_.isRight) shouldBe 3

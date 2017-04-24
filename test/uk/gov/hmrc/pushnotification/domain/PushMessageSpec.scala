@@ -19,10 +19,10 @@ package uk.gov.hmrc.pushnotification.domain
 import play.api.libs.json.Json
 import uk.gov.hmrc.play.test.UnitSpec
 
-class MessageSpec extends UnitSpec {
-  "Message" should {
+class PushMessageSpec extends UnitSpec {
+  "PushMessage" should {
     "render the question in Json given a message with a question" in {
-      val message = Message(
+      val message = PushMessage(
         subject = "You need to authorise your agent",
         body = "You are required to authorise your agent, Dodger & Pretend Accountants.",
         callbackUrl = "https://some/end/point",
@@ -45,7 +45,7 @@ class MessageSpec extends UnitSpec {
     }
 
     "not render a question in Json given a message without a question" in {
-      val message = Message(
+      val message = PushMessage(
         subject = "Your agent has been authorised",
         body = "Your agent, Dodger & Pretend Accountants, is now authorised to act on your behalf.",
         callbackUrl = "https://some/end/point",

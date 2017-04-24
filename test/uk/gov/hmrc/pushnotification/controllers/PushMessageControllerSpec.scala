@@ -33,24 +33,24 @@ import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{AuthConnector, Authority, NoInternalId, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControl, AccountAccessControlWithHeaderCheck, Auth}
 import uk.gov.hmrc.pushnotification.domain.Template
-import uk.gov.hmrc.pushnotification.services.MobileMessagesServiceApi
+import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication with ScalaFutures with StubApplicationConfiguration {
+class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with ScalaFutures with StubApplicationConfiguration {
   override lazy val fakeApplication = FakeApplication(additionalConfiguration = config)
 
   implicit val system = ActorSystem()
   implicit val am = ActorMaterializer()
 
   private trait Setup extends MockitoSugar {
-    val mockService = mock[MobileMessagesServiceApi]
+    val mockService = mock[PushMessageServiceApi]
     val mockAuthConnector = mock[AuthConnector]
 
     val testAccessControl = new AccountAccessControlWithHeaderCheck(new AccountAccessControl(new Auth(mockAuthConnector)))
 
-    val controller = new MobileMessagesController(mockService, testAccessControl)
+    val controller = new PushMessageController(mockService, testAccessControl)
 
     val someAuthority = Authority(Nino("CS700100A"), ConfidenceLevel.L200, "int-id-123")
 
@@ -85,7 +85,7 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
   }
 
-  "MobileMessagesController sendTemplateMessage" should {
+  "PushMessageController sendTemplateMessage" should {
     "create notifications successfully and return 201 success" in new Success {
 
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
@@ -110,21 +110,21 @@ class MobileMessagesControllerSpec extends UnitSpec with WithFakeApplication wit
       status(result) shouldBe 400
     }
 
-    "Return 401 result when authority record does not contain an internal-id" in new AuthFailure {
+    "return 401 result when authority record does not contain an internal-id" in new AuthFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 401
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
     }
 
-    "Return 400 result when bad request exception is thrown by service" in new TemplateFailure {
+    "return 400 result when bad request exception is thrown by service" in new TemplateFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 400
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"BAD REQUEST","message":"really bad request"}""")
     }
 
-    "Return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 500

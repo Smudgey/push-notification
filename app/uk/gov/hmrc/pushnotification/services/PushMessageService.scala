@@ -31,15 +31,15 @@ import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-@ImplementedBy(classOf[MobileMessagesService])
-trait MobileMessagesServiceApi extends Auditor {
+@ImplementedBy(classOf[PushMessageService])
+trait PushMessageServiceApi extends Auditor {
   override val auditConnector = MicroserviceAuditConnector
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[String]
 }
 
 @Singleton
-class MobileMessagesService @Inject() (connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends MobileMessagesServiceApi {
+class PushMessageService @Inject()(connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends PushMessageServiceApi {
 
   override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String] = {
     withAudit("sendTemplateMessage", Map.empty) {
