@@ -21,7 +21,7 @@ import uk.gov.hmrc.play.test.UnitSpec
 
 class PushMessageSpec extends UnitSpec {
   "PushMessage" should {
-    "render the question in Json given a message with a question" in {
+    "render the question (not including the callback url) in Json given a message with a question" in {
       val message = PushMessage(
         subject = "You need to authorise your agent",
         body = "You are required to authorise your agent, Dodger & Pretend Accountants.",
