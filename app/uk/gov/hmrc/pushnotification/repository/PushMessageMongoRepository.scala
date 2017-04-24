@@ -72,9 +72,7 @@ class PushMessageMongoRepository @Inject()(mongo: DB)
   override def find(messageId: String): Future[Option[PushMessagePersist]] =
     collection.
       find(Json.obj("messageId" -> messageId)).
-      cursor[PushMessagePersist](ReadPreference.primaryPreferred).
-      collect[Seq]().
-      map(_.headOption)
+      one[PushMessagePersist](ReadPreference.primaryPreferred)
 
   def findDocumentByMessageId(messageId: String): BSONDocument = BSONDocument("messageId" -> messageId)
 
