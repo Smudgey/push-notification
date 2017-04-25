@@ -32,7 +32,7 @@ import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavail
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{AuthConnector, Authority, NoInternalId, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControl, AccountAccessControlWithHeaderCheck, Auth}
-import uk.gov.hmrc.pushnotification.domain.Template
+import uk.gov.hmrc.pushnotification.domain.{PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -61,13 +61,23 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val messageRequest = fakeRequest(templateJsonBody).withHeaders(acceptHeader)
     val invalidRequest = fakeRequest(Json.parse("""{ "foo" : "bar" }""")).withHeaders(acceptHeader)
 
-    def fakeRequest(body:JsValue) = FakeRequest(POST, "url").withBody(body)
+    val acknowledgeRequest = fakeRequest(Json.parse("""{ "messageId" : "mgs-some-id" }"""))
+    val answerRequest = fakeRequest(Json.parse("""{ "messageId" : "mgs-some-id", "answer" : "yes" }"""))
+
+    def fakeRequest(body: JsValue) = FakeRequest(POST, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
+
+    val someMessage = Some(PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), "msg-some-id"))
   }
 
   private trait Success extends Setup {
-      when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
-      when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("foo"))
+    when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
+    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("foo"))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, someMessage)))
+  }
+
+  private trait Duplicate extends Setup {
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, someMessage)))
   }
 
   private trait AuthFailure extends Setup {
@@ -83,6 +93,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
   private trait RepositoryFailure extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
   }
 
   "PushMessageController sendTemplateMessage" should {
@@ -95,13 +106,13 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     }
 
 
-     "return successfully with a 201 response when journeyId is supplied" in new Success {
+    "return successfully with a 201 response when journeyId is supplied" in new Success {
 
-       val result: Result = await(controller.sendTemplateMessage(Some("journey-id"))(messageRequest))
+      val result: Result = await(controller.sendTemplateMessage(Some("journey-id"))(messageRequest))
 
-       status(result) shouldBe 201
-       jsonBodyOf(result) shouldBe Json.parse("""{"messageId":"foo"}""")
-     }
+      status(result) shouldBe 201
+      jsonBodyOf(result) shouldBe Json.parse("""{"messageId":"foo"}""")
+    }
 
     "return 400 bad request given an invalid request" in new Success {
 
@@ -126,6 +137,76 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
+
+      status(result) shouldBe 500
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
+    }
+  }
+
+  "PushMessageController respondToMessage" should {
+    "acknowledge the message and return 200 success with the message details" in new Success {
+      val result: Result = await(controller.respondToMessage()(acknowledgeRequest))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """
+          |{
+          |  "id":"msg-some-id",
+          |  "subject":"snarkle",
+          |  "body":"Foo, bar baz!",
+          |  "responses":{
+          |    "yes":"Sure",
+          |    "no":"Nope"
+          |  }
+          |}
+          |""".stripMargin)
+    }
+
+    "record the answer and return 200 success" in new Success {
+      val result: Result = await(controller.respondToMessage()(answerRequest))
+
+      status(result) shouldBe 200
+    }
+
+    "return 202 accepted and message details, given a previously acknowledged message" in new Duplicate {
+      val result: Result = await(controller.respondToMessage()(acknowledgeRequest))
+
+      status(result) shouldBe 202
+      jsonBodyOf(result) shouldBe Json.parse(
+        """
+          |{
+          |  "id":"msg-some-id",
+          |  "subject":"snarkle",
+          |  "body":"Foo, bar baz!",
+          |  "responses":{
+          |    "yes":"Sure",
+          |    "no":"Nope"
+          |  }
+          |}
+          |""".stripMargin)
+    }
+
+    "return 202 accepted given a previously answered message" in new Duplicate {
+      val result: Result = await(controller.respondToMessage()(answerRequest))
+
+      status(result) shouldBe 202
+    }
+
+    "return successfully with a 201 response when journeyId is supplied" in new Success {
+      val result: Result = await(controller.respondToMessage(Some("journey-id"))(answerRequest))
+
+      status(result) shouldBe 200
+    }
+
+    "return 400 bad request given an invalid request" in new Success {
+      val result: Result = await(controller.respondToMessage()(invalidRequest))
+
+      status(result) shouldBe 400
+    }
+
+
+    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+      val result: Result = await(controller.respondToMessage()(acknowledgeRequest))
 
       status(result) shouldBe 500
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")

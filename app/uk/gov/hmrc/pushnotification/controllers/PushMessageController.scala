@@ -21,20 +21,23 @@ import javax.inject.{Inject, Singleton}
 import com.google.inject.ImplementedBy
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, BodyParsers}
+import play.api.mvc.{Action, BodyParsers, Result}
 import uk.gov.hmrc.api.controllers.HeaderValidator
 import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
-import uk.gov.hmrc.pushnotification.domain.Template
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
+import uk.gov.hmrc.pushnotification.domain.{PushMessage, Response, Template}
 import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
 @ImplementedBy(classOf[PushMessageController])
-trait PushMessageControllerApi extends BaseController with HeaderValidator with ErrorHandling  {
+trait PushMessageControllerApi extends BaseController with HeaderValidator with ErrorHandling {
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
+
+  def respondToMessage(journeyId: Option[String] = None): Action[JsValue]
 }
 
 @Singleton
@@ -53,6 +56,27 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         template => {
           errorWrapper(service.sendTemplateMessage(template)(hc, authenticated.authority).map {
             id: String => Created(Json.obj("messageId" -> id))
+          })
+        }
+      )
+  }
+
+  override def respondToMessage(journeyId: Option[String]): Action[JsValue] = Action.async(BodyParsers.parse.json) {
+    implicit request =>
+      request.body.validate[Response].fold(
+        errors => {
+          Logger.warn("Service failed for respondToMessage: " + errors)
+          Future.successful(BadRequest)
+        },
+        response => {
+          val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
+          errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
+            if (result) {
+              maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
+            } else {
+              Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
+              maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
+            }
           })
         }
       )

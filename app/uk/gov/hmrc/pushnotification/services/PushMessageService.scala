@@ -25,7 +25,7 @@ import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
-import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageRepositoryApi, PushNotificationRepositoryApi}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -37,7 +37,7 @@ trait PushMessageServiceApi extends Auditor {
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[String]
 
-  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
+  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
 }
 
 @Singleton
@@ -62,14 +62,15 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     }
   }
 
-  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean] = {
+  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])] = {
     for (
-      message <- messageRepository.find(messageId);
-      saved <- message.map(p => callbackRepository.save(messageId, p.callbackUrl, status, answer).map {
+      message: Option[PushMessage] <- messageRepository.find(messageId).map(_.map(pm =>
+        PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
+      saved <- message.map(msg => callbackRepository.save(messageId, msg.callbackUrl, status, answer).map {
         case Right(result) => result
         case Left(error) => throw new ServiceUnavailableException(error)
       }).getOrElse(Future(false))
-    ) yield saved
+    ) yield (saved, message)
   }
 
   private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
