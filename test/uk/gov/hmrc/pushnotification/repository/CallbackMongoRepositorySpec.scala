@@ -18,7 +18,7 @@ package uk.gov.hmrc.pushnotification.repository
 
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterEach, LoneElement}
-import reactivemongo.api.commands.WriteResult
+import reactivemongo.bson.BSONObjectID
 import reactivemongo.core.errors.DatabaseException
 import uk.gov.hmrc.mongo.MongoSpecSupport
 import uk.gov.hmrc.play.test.UnitSpec
@@ -48,36 +48,53 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
   "CallbackMongoRepository indexes" should {
     "not be able to insert duplicate messageId/status combinations" in new Setup {
-      await(repository.save(someMessageId, someUrl, someMessageStatus, None))
+      val saved = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someMessageStatus, None)
 
-      a[DatabaseException] should be thrownBy await(repository.save(someMessageId, otherUrl, someMessageStatus, None))
+      await(repository.insert(saved))
+
+      a[DatabaseException] should be thrownBy await(repository.insert(saved.copy(id = BSONObjectID.generate, callbackUrl = otherUrl)))
     }
 
     "be able to insert multiple messages with the messageId but different statuses" in new Setup {
       await(repository.save(someMessageId, someUrl, someMessageStatus, None))
 
-      val actual: WriteResult = await(repository.save(someMessageId, someUrl, otherMessageStatus, someAnswer))
+      val actual: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, otherMessageStatus, someAnswer))
 
-      actual.ok shouldBe true
+      actual.isRight shouldBe true
+      actual.right.get shouldBe true
     }
   }
 
   "CallbackMongoRepository" should {
 
     "persist callbacks that include an answer" in new Setup {
-      val result = await(repository.save(someMessageId, someUrl, someMessageStatus, someAnswer))
+      val result: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, someMessageStatus, Some("answer")))
 
-      result.ok shouldBe true
+      result.isRight shouldBe true
+      result.right.get shouldBe true
     }
 
-    "persist messages that do not include an answer" in new Setup {
-      val result = await(repository.save(someMessageId, someUrl, someMessageStatus, None))
+    "persist callbacks that do not include an answer" in new Setup {
+      val result: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, someMessageStatus, None))
 
-      result.ok shouldBe true
+      result.isRight shouldBe true
+      result.right.get shouldBe true
+    }
+
+    "return false given a callback that was previously saved" in new Setup {
+      val initial: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, someMessageStatus, someAnswer))
+
+      initial.isRight shouldBe true
+      initial.right.get shouldBe true
+
+      val result: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, someMessageStatus, someAnswer))
+
+      result.isRight shouldBe true
+      result.right.get shouldBe false
     }
 
     "find the latest status and answer given a message id" in new Setup {
-      val saved: Seq[WriteResult] =
+      val saved: Seq[Either[String, Boolean]] =
         Seq(
           await(repository.save(someMessageId, someUrl, Acknowledge, None)),
           await(repository.save(someMessageId, someUrl, Acknowledged, None)),
@@ -86,7 +103,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
           await(repository.save(otherMessageId, otherUrl, Acknowledge, None))
         )
 
-      saved.count(_.ok) shouldBe 5
+      saved.count(_.isRight) shouldBe 5
 
       val someResult: Option[PushMessageCallbackPersist] = await(repository.findLatest(someMessageId))
 
@@ -108,14 +125,14 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
     }
 
     "not find a status given a non-existent message id" in new Setup {
-      val saved: Seq[WriteResult] =
+      val saved: Seq[Either[String, Boolean]] =
         Seq(
           await(repository.save(someMessageId, someUrl, Acknowledge, None)),
           await(repository.save(someMessageId, someUrl, Acknowledged, None)),
           await(repository.save(otherMessageId, otherUrl, Answer, someAnswer))
         )
 
-      saved.count(_.ok) shouldBe 3
+      saved.count(_.isRight) shouldBe 3
 
       val result: Option[PushMessageCallbackPersist] = await(repository.findLatest("does-not-exist-message-id"))
 

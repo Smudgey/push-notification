@@ -22,10 +22,9 @@ import com.google.inject.ImplementedBy
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json.{Format, JsPath, Json, Reads}
-import reactivemongo.api.commands.WriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
-import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus
@@ -52,9 +51,9 @@ object PushMessageCallbackPersist {
 
 @Singleton
 class CallbackMongoRepository @Inject()(mongo: DB)
-  extends ReactiveRepository[PushMessagePersist, BSONObjectID]("callback", () => mongo, PushMessagePersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
+  extends ReactiveRepository[PushMessageCallbackPersist, BSONObjectID]("callback", () => mongo, PushMessageCallbackPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
     with AtomicUpdate[PushMessageCallbackPersist]
-    with CallbackMongoRepositoryApi
+    with CallbackRepositoryApi
     with BSONBuilderHelpers {
 
   override def ensureIndexes(implicit ec: ExecutionContext): Future[Seq[Boolean]] = {
@@ -68,18 +67,31 @@ class CallbackMongoRepository @Inject()(mongo: DB)
 
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: PushMessageCallbackPersist): Boolean = newRecordId.equals(oldRecord.id)
 
-  override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[WriteResult] = {
-    val callback = BSONDocument(
-      "messageId" -> messageId,
-      "callbackUrl" -> callbackUrl,
-      "status" -> PushMessageStatus.ordinal(status),
-      "created" -> BSONDateTime(DateTimeUtils.now.getMillis)
-    )
-    val response = answer.fold(BSONDocument.empty) { a =>
-      BSONDocument("answer" -> a)
-    }
+  override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[Either[String, Boolean]] =
+    atomicUpsert(findCallbackByMessageIdAndStatus(messageId, status), insertCallback(messageId, callbackUrl, status, answer)).
+      map { r =>
+        if (r.writeResult.ok) {
+          Right(!r.writeResult.updatedExisting)
+        } else {
+          Left(r.writeResult.message)
+        }
+      }
 
-    collection.insert(callback ++ response)
+  def findCallbackByMessageIdAndStatus(messageId: String, status: PushMessageStatus): BSONDocument =
+    BSONDocument("$and" -> BSONArray(BSONDocument("messageId" -> messageId), BSONDocument("status" -> PushMessageStatus.ordinal(status))))
+
+  def insertCallback(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): BSONDocument = {
+    val callback = BSONDocument(
+      "$setOnInsert" -> BSONDocument("messageId" -> messageId),
+      "$setOnInsert" -> BSONDocument("callbackUrl" -> callbackUrl),
+      "$setOnInsert" -> BSONDocument("status" -> PushMessageStatus.ordinal(status)),
+      "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis))
+    )
+
+    val response = answer.fold(BSONDocument.empty) { ans =>
+      BSONDocument("$setOnInsert" -> BSONDocument("answer" -> ans))
+    }
+    callback ++ response
   }
 
   override def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]] =
@@ -91,8 +103,8 @@ class CallbackMongoRepository @Inject()(mongo: DB)
 
 
 @ImplementedBy(classOf[CallbackMongoRepository])
-trait CallbackMongoRepositoryApi {
-  def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[WriteResult]
+trait CallbackRepositoryApi {
+  def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[Either[String, Boolean]]
 
   def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
 }
