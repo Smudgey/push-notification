@@ -25,8 +25,8 @@ import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
-import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
-import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
+import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageRepositoryApi, PushNotificationRepositoryApi}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -36,10 +36,12 @@ trait PushMessageServiceApi extends Auditor {
   override val auditConnector = MicroserviceAuditConnector
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[String]
+
+  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
 }
 
 @Singleton
-class PushMessageService @Inject()(connector: PushRegistrationConnector, repository: PushNotificationRepositoryApi) extends PushMessageServiceApi {
+class PushMessageService @Inject()(connector: PushRegistrationConnector, notificationRepository: PushNotificationRepositoryApi, messageRepository: PushMessageRepositoryApi, callbackRepository: CallbackRepositoryApi) extends PushMessageServiceApi {
 
   override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String] = {
     withAudit("sendTemplateMessage", Map.empty) {
@@ -60,10 +62,20 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, reposit
     }
   }
 
+  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean] = {
+    for (
+      message <- messageRepository.find(messageId);
+      saved <- message.map(p => callbackRepository.save(messageId, p.callbackUrl, status, answer).map {
+        case Right(result) => result
+        case Left(error) => throw new ServiceUnavailableException(error)
+      }).getOrElse(Future(false))
+    ) yield saved
+  }
+
   private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
     Future.sequence(endpoints.map{ endpoint =>
       val notification = Notification(messageId, endpoint = endpoint, content = message)
-      repository.save(authId, notification).map {
+      notificationRepository.save(authId, notification).map {
         case Right(n) => n.notificationId
         case Left(e) => throw new ServiceUnavailableException(e)
       }

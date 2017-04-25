@@ -18,11 +18,11 @@ package uk.gov.hmrc.pushnotification.services
 
 import java.util.UUID
 
+import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, matches}
 import org.mockito.Mockito.{doAnswer, doReturn, times, verify}
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
-import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.mockito.MockitoSugar
@@ -33,8 +33,9 @@ import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
-import uk.gov.hmrc.pushnotification.domain.{Notification, Template}
-import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationRepositoryApi}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answered}
+import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.repository._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future.{failed, successful}
@@ -48,9 +49,11 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
   private trait Setup extends MockitoSugar {
     val mockConnector = mock[PushRegistrationConnector]
-    val mockRepository = mock[PushNotificationRepositoryApi]
+    val mockNotificationRepository = mock[PushNotificationRepositoryApi]
+    val mockMessageRepository = mock[PushMessageRepositoryApi]
+    val mockCallbackRepository = mock[CallbackRepositoryApi]
 
-    val service = new PushMessageService(mockConnector, mockRepository)
+    val service = new PushMessageService(mockConnector, mockNotificationRepository, mockMessageRepository, mockCallbackRepository)
 
     val someAuth = Authority(Nino("CS700100A"), L200, "int-auth-id-1")
     val otherAuth = Authority(Nino("CS700101A"), L200, "int-auth-id-2")
@@ -58,11 +61,22 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val someTemplateName = "hello"
     val someParams = Seq("Bob")
     val endpoints = Seq("foo", "bar", "baz")
-    val someTemplate = Template(someTemplateName, someParams:_*)
+    val someTemplate = Template(someTemplateName, someParams: _*)
 
+    val someMessageId = "msg-some-id"
+    val someStatus = Acknowledge
+    val someAnswer = None
+    val someSubject = "Grault"
+    val someBody = "There is no Frigate like a Book\nTo take us Lands away"
+    val someResponses = Map("yes" -> "Yes", "no" -> "No")
+    val someUrl = "http://over.yonder/call/back"
+
+    val savedMessage = PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someUrl)
+  }
+
+  private trait Success extends Setup {
     doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
     doReturn(failed(new NotFoundException("No endpoints")), Nil: _* ).when(mockConnector).endpointsForAuthId(matches(otherAuth.authInternalId))(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
-    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockRepository).save(matches(brokenAuth.authInternalId),any[Notification]())
     doAnswer(new Answer[Future[Either[String,NotificationPersist]]] {
       override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, NotificationPersist]] = {
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
@@ -70,16 +84,35 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
         successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
       }
-    }).when(mockRepository).save(matches(someAuth.authInternalId),any[Notification]())
+    }).when(mockNotificationRepository).save(matches(someAuth.authInternalId),any[Notification]())
+
+    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Right(true)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
+  }
+
+  private trait Duplicate extends Setup {
+    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Right(true)), Nil: _* ).doReturn(successful(Right(false)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
+  }
+
+  private trait Invalid extends Setup {
+    doReturn(successful(None), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
+  }
+
+  private trait Failed extends Setup {
+    doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
+    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockNotificationRepository).save(matches(brokenAuth.authInternalId),any[Notification]())
+    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
   }
 
   "PushMessageService sendTemplateMessage" should {
-    "return a message id given a valid template name and an authority with endpoints" in new Setup {
+    "return a message id given a valid template name and an authority with endpoints" in new Success {
       val notificationCaptor: ArgumentCaptor[Notification] = ArgumentCaptor.forClass(classOf[Notification])
 
       val result: String = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
 
-      verify(mockRepository, times(endpoints.size)).save(ArgumentMatchers.any[String](), notificationCaptor.capture())
+      verify(mockNotificationRepository, times(endpoints.size)).save(any[String](), notificationCaptor.capture())
 
       val actualNotifications = asScalaBuffer(notificationCaptor.getAllValues)
 
@@ -88,7 +121,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result should BeGuid
     }
 
-    "throw an unauthorized exception given an empty authority" in new Setup {
+    "throw an unauthorized exception given an empty authority" in new Success {
       val result = intercept[UnauthorizedException] {
         await(service.sendTemplateMessage(someTemplate)(hc, None))
       }
@@ -96,7 +129,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result.getMessage shouldBe "No Authority record found for request!"
     }
 
-    "throw a bad request exception given a non-existent template" in new Setup {
+    "throw a bad request exception given a non-existent template" in new Success {
       val nonExistent = "foo"
 
       val result = intercept[BadRequestException] {
@@ -106,7 +139,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result.getMessage shouldBe s"No such template '$nonExistent'"
     }
 
-    "throw a not found exception given an authority that does not have any endpoints" in new Setup {
+    "throw a not found exception given an authority that does not have any endpoints" in new Success {
       val result = intercept[NotFoundException] {
         await(service.sendTemplateMessage(someTemplate)(hc, Option(otherAuth)))
       }
@@ -114,7 +147,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result.getMessage shouldBe "No endpoints"
     }
 
-    "throw a server error if the messages could not be created" in new Setup {
+    "throw a server error if the messages could not be created" in new Failed {
       val result = intercept[ServiceUnavailableException] {
         await(service.sendTemplateMessage(someTemplate)(hc, Option(brokenAuth)))
       }
@@ -123,7 +156,69 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
   }
 
-  class GUIDMatcher extends Matcher[String] {
+  "PushMessageService respondToMessage" should {
+     "save the acknowledgement with the callback url and return true given a valid message id" in new Success {
+       val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+       val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+       val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
+       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+
+       val result: Boolean = await(service.respondToMessage(someMessageId, Acknowledge, None))
+
+       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture())
+
+       idCaptor.getValue shouldBe someMessageId
+       urlCaptor.getValue shouldBe someUrl
+       statusCaptor.getValue shouldBe Acknowledge
+       answerCaptor.getValue shouldBe None
+
+       result shouldBe true
+     }
+
+     "save the answer with the callback url and return true given a valid message id and answer" in new Success {
+       val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+       val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+       val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
+       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+
+       val result: Boolean = await(service.respondToMessage(someMessageId, Answered, Some("yes")))
+
+       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture())
+
+       idCaptor.getValue shouldBe someMessageId
+       urlCaptor.getValue shouldBe someUrl
+       statusCaptor.getValue shouldBe Answered
+       answerCaptor.getValue shouldBe Some("yes")
+
+       result shouldBe true
+     }
+
+     "not save anything and return true given a valid message id and duplicate status" in new Duplicate {
+       val initial: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+
+       initial shouldBe true
+
+       val result: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+
+       result shouldBe false
+     }
+
+    "return false given an invalid message id" in new Invalid {
+      val result: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+
+      result shouldBe false
+    }
+
+    "throw a server error if the answer could not be processed" in new Failed {
+      val result = intercept[ServiceUnavailableException] {
+        await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      }
+
+      result.getMessage shouldBe "Failed to save the thing"
+    }
+  }
+
+    class GUIDMatcher extends Matcher[String] {
     def apply(maybeGuid: String): MatchResult = {
       val result = try {
         UUID.fromString(maybeGuid)
