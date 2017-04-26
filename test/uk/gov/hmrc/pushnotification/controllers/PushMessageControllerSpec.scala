@@ -99,6 +99,10 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
   }
 
+  private trait Invalid extends Setup {
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new BadRequestException("invalid answer")))
+  }
+
   "PushMessageController sendTemplateMessage" should {
     "create notifications successfully and return 201 success" in new Success {
 
@@ -209,6 +213,12 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     "return 400 bad request when the messageId in the path does not match the id in the payload" in new Success {
       val result: Result = await(controller.respondToMessage(otherMessageId)(answerRequest))
+
+      status(result) shouldBe 400
+    }
+
+    "return 400 bad request when an invalid answer is provided in the payload" in new Invalid {
+      val result: Result = await(controller.respondToMessage(someMessageId)(answerRequest))
 
       status(result) shouldBe 400
     }

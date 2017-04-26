@@ -35,7 +35,7 @@ import scala.concurrent.Future
 trait PushMessageServiceApi extends Auditor {
   override val auditConnector = MicroserviceAuditConnector
 
-  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority:Option[Authority]): Future[String]
+  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String]
 
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
 }
@@ -66,15 +66,20 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     for (
       message: Option[PushMessage] <- messageRepository.find(messageId).map(_.map(pm =>
         PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
-      saved <- message.map(msg => callbackRepository.save(messageId, msg.callbackUrl, status, answer).map {
-        case Right(result) => result
-        case Left(error) => throw new ServiceUnavailableException(error)
-      }).getOrElse(Future(false))
+      saved <- message.map { msg =>
+        if (!answer.forall { a => msg.responses.count(_._1 == a) > 0 }) {
+          throw new BadRequestException(s"invalid answer [${answer.getOrElse("")}]")
+        }
+        callbackRepository.save(messageId, msg.callbackUrl, status, answer).map {
+          case Right(result) => result
+          case Left(error) => throw new ServiceUnavailableException(error)
+        }
+      }.getOrElse(Future(false))
     ) yield (saved, message)
   }
 
   private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
-    Future.sequence(endpoints.map{ endpoint =>
+    Future.sequence(endpoints.map { endpoint =>
       val notification = Notification(messageId, endpoint = endpoint, content = message)
       notificationRepository.save(authId, notification).map {
         case Right(n) => n.notificationId

@@ -215,6 +215,14 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result shouldBe false
     }
 
+    "throw a bad request exception given an invalid answer" in new Success {
+      val result = intercept[BadRequestException] {
+        await(service.respondToMessage(someMessageId, Answered, Some("snarkle")))
+      }
+
+      result.getMessage shouldBe "invalid answer [snarkle]"
+    }
+
     "throw a server error if the answer could not be processed" in new Failed {
       val result = intercept[ServiceUnavailableException] {
         await(service.respondToMessage(someMessageId, someStatus, someAnswer))
