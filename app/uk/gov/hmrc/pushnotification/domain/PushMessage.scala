@@ -25,7 +25,7 @@ import scala.math.BigDecimal
 trait PushMessageStatus
 
 object PushMessageStatus {
-  val statuses = List("acknowledge", "acknowledging", "acknowledged", "answer", "answering", "answered", "timeout")
+  val statuses = List("acknowledge", "acknowledging", "acknowledged", "answer", "answering", "answered", "timeout", "failed")
 
   case object Acknowledge extends PushMessageStatus {
     override def toString: String = statuses.head
@@ -55,6 +55,10 @@ object PushMessageStatus {
     override def toString: String = statuses(6)
   }
 
+  case object PermanentlyFailed extends PushMessageStatus {
+    override def toString: String = statuses(7)
+  }
+
   def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status.toString)
 
   val readsFromRepository: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
@@ -67,6 +71,7 @@ object PushMessageStatus {
         case JsNumber(value: BigDecimal) if value == ordinal(Answering) => JsSuccess(Answering)
         case JsNumber(value: BigDecimal) if value == ordinal(Answered) => JsSuccess(Answered)
         case JsNumber(value: BigDecimal) if value == ordinal(Timeout) => JsSuccess(Timeout)
+        case JsNumber(value: BigDecimal) if value == ordinal(PermanentlyFailed) => JsSuccess(PermanentlyFailed)
         case _ => JsError(s"Failed to resolve $json")
       }
   }
