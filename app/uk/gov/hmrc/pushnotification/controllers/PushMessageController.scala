@@ -37,7 +37,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait PushMessageControllerApi extends BaseController with HeaderValidator with ErrorHandling {
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
 
-  def respondToMessage(journeyId: Option[String] = None): Action[JsValue]
+  def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
 }
 
 @Singleton
@@ -61,7 +61,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
       )
   }
 
-  override def respondToMessage(journeyId: Option[String]): Action[JsValue] = Action.async(BodyParsers.parse.json) {
+  override def respondToMessage(id: String, journeyId: Option[String]): Action[JsValue] = Action.async(BodyParsers.parse.json) {
     implicit request =>
       request.body.validate[Response].fold(
         errors => {
@@ -69,15 +69,20 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
           Future.successful(BadRequest)
         },
         response => {
-          val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
-          errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
-            if (result) {
-              maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
-            } else {
-              Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
-              maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
-            }
-          })
+          if (id == response.messageId) {
+            val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
+            errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
+              if (result) {
+                maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
+              } else {
+                Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
+                maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
+              }
+            })
+          } else {
+            Logger.warn("Message id in path does not match message id in payload")
+            Future.successful(BadRequest)
+          }
         }
       )
   }
