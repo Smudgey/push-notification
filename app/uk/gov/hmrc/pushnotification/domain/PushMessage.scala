@@ -25,32 +25,34 @@ import scala.math.BigDecimal
 trait PushMessageStatus
 
 object PushMessageStatus {
-  val statuses = List("acknowledge", "acknowledged", "answer", "answered", "timeout")
-
-  val acknowledge: String = statuses.head
-  val acknowledged: String = statuses(1)
-  val answer: String = statuses(2)
-  val answered: String = statuses(3)
-  val timeout: String = statuses(4)
+  val statuses = List("acknowledge", "acknowledging", "acknowledged", "answer", "answering", "answered", "timeout")
 
   case object Acknowledge extends PushMessageStatus {
-    override def toString: String = acknowledge
+    override def toString: String = statuses.head
+  }
+
+  case object Acknowledging extends PushMessageStatus {
+    override def toString: String = statuses(1)
   }
 
   case object Acknowledged extends PushMessageStatus {
-    override def toString: String = acknowledged
+    override def toString: String = statuses(2)
   }
 
   case object Answer extends PushMessageStatus {
-    override def toString: String = answer
+    override def toString: String = statuses(3)
+  }
+
+  case object Answering extends PushMessageStatus {
+    override def toString: String = statuses(4)
   }
 
   case object Answered extends PushMessageStatus {
-    override def toString: String = answered
+    override def toString: String = statuses(5)
   }
 
   case object Timeout extends PushMessageStatus {
-    override def toString: String = timeout
+    override def toString: String = statuses(6)
   }
 
   def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status.toString)
@@ -59,36 +61,21 @@ object PushMessageStatus {
     override def reads(json: JsValue): JsResult[PushMessageStatus] =
       json match {
         case JsNumber(value: BigDecimal) if value == ordinal(Acknowledge) => JsSuccess(Acknowledge)
+        case JsNumber(value: BigDecimal) if value == ordinal(Acknowledging) => JsSuccess(Acknowledging)
         case JsNumber(value: BigDecimal) if value == ordinal(Acknowledged) => JsSuccess(Acknowledged)
         case JsNumber(value: BigDecimal) if value == ordinal(Answer) => JsSuccess(Answer)
+        case JsNumber(value: BigDecimal) if value == ordinal(Answering) => JsSuccess(Answering)
         case JsNumber(value: BigDecimal) if value == ordinal(Answered) => JsSuccess(Answered)
         case JsNumber(value: BigDecimal) if value == ordinal(Timeout) => JsSuccess(Timeout)
         case _ => JsError(s"Failed to resolve $json")
       }
   }
 
-  val reads: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
-    override def reads(json: JsValue): JsResult[PushMessageStatus] = json match {
-      case JsString(PushMessageStatus.acknowledge) => JsSuccess(Acknowledge)
-      case JsString(PushMessageStatus.acknowledged) => JsSuccess(Acknowledged)
-      case JsString(PushMessageStatus.answer) => JsSuccess(Answer)
-      case JsString(PushMessageStatus.answered) => JsSuccess(Answered)
-      case JsString(PushMessageStatus.timeout) => JsSuccess(Timeout)
-      case _ => JsError(s"Failed to resolve $json")
-    }
+  val writesToRepository: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
+    override def writes(status: PushMessageStatus): JsNumber = JsNumber(ordinal(status)) //status match {
   }
 
-  val writes: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
-    override def writes(status: PushMessageStatus): JsString = status match {
-      case Acknowledge => JsString(acknowledge)
-      case Acknowledged => JsString(acknowledged)
-      case Answer => JsString(answer)
-      case Answered => JsString(answered)
-      case Timeout => JsString(timeout)
-    }
-  }
-
-  implicit val formats = Format(PushMessageStatus.reads, PushMessageStatus.writes)
+  implicit val formats = Format(PushMessageStatus.readsFromRepository, PushMessageStatus.writesToRepository)
 }
 
 case class PushMessage(subject: String, body: String, callbackUrl: String, responses: Map[String, String] = Map.empty, messageId: String = UUID.randomUUID().toString)

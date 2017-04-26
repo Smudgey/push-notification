@@ -55,7 +55,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       a[DatabaseException] should be thrownBy await(repository.insert(saved.copy(id = BSONObjectID.generate, callbackUrl = otherUrl)))
     }
 
-    "be able to insert multiple messages with the messageId but different statuses" in new Setup {
+    "be able to insert multiple messages with the same messageId but different statuses" in new Setup {
       await(repository.save(someMessageId, someUrl, someMessageStatus, None))
 
       val actual: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, otherMessageStatus, someAnswer))
