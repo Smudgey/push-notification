@@ -41,7 +41,7 @@ class NotificationsService @Inject()(repository: PushNotificationRepositoryApi) 
   override def getUnsentNotifications: Future[Seq[Notification]] = {
     repository.getUnsentNotifications.map(
       _.map(np =>
-        Notification(np.endpoint, np.message, Some(np.messageId), np.status))
+        Notification(messageId = np.messageId, endpoint = np.endpoint, content = np.content, notificationId = Some(np.notificationId), status = np.status))
     ).recover{
       case e: Exception =>
         Logger.error(s"Unable to retrieve unsent notifications: ${e.getMessage}")
