@@ -33,7 +33,8 @@ import uk.gov.hmrc.time.DateTimeUtils
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class NotificationPersist(id: BSONObjectID, messageId: String, authId: String, endpoint: String, content: String, notificationId: String, status: NotificationStatus, attempts: Int)
+case class NotificationPersist(id: BSONObjectID, notificationId: String, messageId: Option[String], authId: String, endpoint: String,
+                               content: String, os: String, status: NotificationStatus, attempts: Int)
 
 object NotificationPersist {
   val mongoFormats: Format[NotificationPersist] = ReactiveMongoFormats.mongoEntity({
@@ -127,6 +128,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     }
     val coreData = BSONDocument(
       "$setOnInsert" -> BSONDocument("messageId" -> notification.messageId),
+      "$setOnInsert" -> BSONDocument("os" -> notification.os),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
       "$setOnInsert" -> BSONDocument("attempts" -> 0),
       "$setOnInsert" -> BSONDocument("endpoint" -> notification.endpoint),

@@ -33,8 +33,8 @@ trait PushRegistrationConnectorApi {
 
   def url(path: String) = s"$serviceUrl$path"
 
-  def endpointsForAuthId(id: String)(implicit r: HttpReads[Seq[String]], ec: ExecutionContext): Future[Seq[String]] = {
-    http.GET[Seq[String]](url = url(s"/push/endpoint/$id")).recover {
+  def endpointsForAuthId(id: String)(implicit r: HttpReads[Map[String, String]], ec: ExecutionContext): Future[Map[String, String]] = {
+    http.GET[Map[String, String]](url = url(s"/push/endpoint/$id")).recover {
       case ex: HttpException if ex.responseCode == 404  => throw new NotFoundException(s"no endpoints found for '$id'")
     }
   }

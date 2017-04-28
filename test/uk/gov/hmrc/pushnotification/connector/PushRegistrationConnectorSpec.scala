@@ -16,16 +16,13 @@
 
 package uk.gov.hmrc.pushnotification.connector
 
-import java.util.UUID
-
-import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.{any, matches}
 import org.mockito.Mockito.doReturn
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.mockito.MockitoSugar
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.http.ws.WSHttp
 import uk.gov.hmrc.play.test.UnitSpec
-import org.scalatest.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -44,7 +41,7 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
     val someId = "int-some-id"
     val otherId = "int-other-id"
     val brokenId = "int-broken-id"
-    val endpoints = Seq("end:point:a", "end:point:b")
+    val endpoints = Map("end:point:a" -> "windows", "end:point:b" -> "android")
 
     doReturn(successful(endpoints), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier]())
     doReturn(failed(new NotFoundException("nothing for you here")), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier]())
@@ -53,7 +50,7 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
 
   "PushRegistrationConnector endpointsForAuthId" should {
     "return endpoints given an auth id that has associated endpoints" in new Setup {
-      val result: Seq[String] = await(connector.endpointsForAuthId(someId))
+      val result: Map[String, String] = await(connector.endpointsForAuthId(someId))
 
       result shouldBe endpoints
     }
