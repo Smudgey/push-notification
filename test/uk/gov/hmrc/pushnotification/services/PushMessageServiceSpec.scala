@@ -121,6 +121,8 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       result should BeGuid
     }
 
+    //TODO Added tests for sending a message with and without a messageId.
+
     "throw an unauthorized exception given an empty authority" in new Success {
       val result = intercept[UnauthorizedException] {
         await(service.sendTemplateMessage(someTemplate)(hc, None))
