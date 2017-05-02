@@ -21,19 +21,21 @@ import javax.inject.{Inject, Singleton}
 import com.google.inject.ImplementedBy
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
-import play.api.libs.json.{Format, JsPath, Json, Reads}
+import play.api.libs.json._
+import reactivemongo.api.commands.UpdateWriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer, Timeout}
 import uk.gov.hmrc.time.DateTimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class PushMessageCallbackPersist(id: BSONObjectID, messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String] = None)
+case class PushMessageCallbackPersist(id: BSONObjectID, messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String] = None, attempt: Int = 0)
 
 object PushMessageCallbackPersist {
   implicit val oidFormat: Format[BSONObjectID] = ReactiveMongoFormats.objectIdFormats
@@ -42,7 +44,8 @@ object PushMessageCallbackPersist {
       (JsPath \ "messageId").read[String] and
       (JsPath \ "callbackUrl").read[String] and
       (JsPath \ "status").read[PushMessageStatus](PushMessageStatus.readsFromRepository) and
-      (JsPath \ "answer").readNullable[String]
+      (JsPath \ "answer").readNullable[String] and
+      (JsPath \ "attempt").read[Int]
     ) (PushMessageCallbackPersist.apply _)
   val mongoFormats: Format[PushMessageCallbackPersist] = ReactiveMongoFormats.mongoEntity({
     Format(reads, Json.writes[PushMessageCallbackPersist])
@@ -67,8 +70,8 @@ class CallbackMongoRepository @Inject()(mongo: DB)
 
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: PushMessageCallbackPersist): Boolean = newRecordId.equals(oldRecord.id)
 
-  override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[Either[String, Boolean]] =
-    atomicUpsert(findCallbackByMessageIdAndStatus(messageId, status), insertCallback(messageId, callbackUrl, status, answer)).
+  override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]] =
+    atomicUpsert(findCallbackByMessageIdAndStatus(messageId, status), insertCallback(messageId, callbackUrl, status, answer, attempt)).
       map { r =>
         if (r.writeResult.ok) {
           Right(!r.writeResult.updatedExisting)
@@ -77,13 +80,39 @@ class CallbackMongoRepository @Inject()(mongo: DB)
         }
       }
 
+  override def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]] =
+    collection.
+      find(Json.obj("messageId" -> messageId)).
+      sort(Json.obj("status" -> -1)).
+      one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
+
+  override def findUndelivered: Future[Seq[PushMessageCallbackPersist]] = {
+    val processed: BSONDateTime = BSONDateTime(DateTimeUtils.now.getMillis)
+
+    val update: Future[UpdateWriteResult] = collection.update(
+      undelivered(),
+      setProcessed(processed),
+      upsert = false,
+      multi = true
+    )
+
+    update.flatMap { _ =>
+      collection.
+        find(BSONDocument("processed" -> processed)).
+        sort(Json.obj("processed" -> JsNumber(-1))).
+        cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
+        collect[Seq]()
+    }
+  }
+
   def findCallbackByMessageIdAndStatus(messageId: String, status: PushMessageStatus): BSONDocument =
     BSONDocument("$and" -> BSONArray(BSONDocument("messageId" -> messageId), BSONDocument("status" -> PushMessageStatus.ordinal(status))))
 
-  def insertCallback(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): BSONDocument = {
+  def insertCallback(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int): BSONDocument = {
     val callback = BSONDocument(
       "$setOnInsert" -> BSONDocument("messageId" -> messageId),
       "$setOnInsert" -> BSONDocument("callbackUrl" -> callbackUrl),
+      "$setOnInsert" -> BSONDocument("attempt" -> attempt),
       "$setOnInsert" -> BSONDocument("status" -> PushMessageStatus.ordinal(status)),
       "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
@@ -94,17 +123,35 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     callback ++ response
   }
 
-  override def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]] =
-    collection.
-      find(Json.obj("messageId" -> messageId)).
-      sort(Json.obj("status" -> -1)).
-      one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
+  def undelivered(): BSONDocument =
+    BSONDocument(
+      "$and" -> BSONArray(
+        BSONDocument("status" ->
+          BSONDocument("$in" -> BSONArray(
+            PushMessageStatus.ordinal(Acknowledge),
+            PushMessageStatus.ordinal(Answer),
+            PushMessageStatus.ordinal(Timeout)))),
+        BSONDocument("processed" -> BSONDocument("$exists" -> false))
+      )
+    )
+
+  def setProcessed(processed: BSONDateTime): BSONDocument =
+    BSONDocument(
+      "$set" -> BSONDocument(
+        "processed" -> processed
+      ),
+      "$inc" -> BSONDocument(
+        "attempt" -> 1
+      )
+    )
 }
 
 
 @ImplementedBy(classOf[CallbackMongoRepository])
 trait CallbackRepositoryApi {
-  def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String]): Future[Either[String, Boolean]]
+  def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]]
 
   def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
+
+  def findUndelivered: Future[Seq[PushMessageCallbackPersist]]
 }

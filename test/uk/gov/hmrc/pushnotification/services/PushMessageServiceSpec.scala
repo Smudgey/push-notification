@@ -33,7 +33,7 @@ import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answered}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledged, Answered}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository._
 
@@ -64,7 +64,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val someTemplate = Template(someTemplateName, someParams: _*)
 
     val someMessageId = "msg-some-id"
-    val someStatus = Acknowledge
+    val someStatus = Acknowledged
     val someAnswer = None
     val someSubject = "Grault"
     val someBody = "There is no Frigate like a Book\nTo take us Lands away"
@@ -87,12 +87,12 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }).when(mockNotificationRepository).save(matches(someAuth.authInternalId),any[Notification]())
 
     doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
-    doReturn(successful(Right(true)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
+    doReturn(successful(Right(true)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   private trait Duplicate extends Setup {
     doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
-    doReturn(successful(Right(true)), Nil: _* ).doReturn(successful(Right(false)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
+    doReturn(successful(Right(true)), Nil: _* ).doReturn(successful(Right(false)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   private trait Invalid extends Setup {
@@ -103,7 +103,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
     doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
     doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockNotificationRepository).save(matches(brokenAuth.authInternalId),any[Notification]())
-    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]]())
+    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   "PushMessageService sendTemplateMessage" should {
@@ -162,15 +162,17 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
        val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
        val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
        val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-       val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledge, None))
+       val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledged, None))
 
-       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture())
+       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
        idCaptor.getValue shouldBe someMessageId
        urlCaptor.getValue shouldBe someUrl
-       statusCaptor.getValue shouldBe Acknowledge
+       statusCaptor.getValue shouldBe Acknowledged
        answerCaptor.getValue shouldBe None
+       attemptCaptor.getValue shouldBe 0
 
        val message = maybeMessage.getOrElse(fail("should have returned message details"))
 
@@ -186,15 +188,17 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
        val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
        val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
        val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
        val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Answered, Some("yes")))
 
-       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture())
+       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
        idCaptor.getValue shouldBe someMessageId
        urlCaptor.getValue shouldBe someUrl
        statusCaptor.getValue shouldBe Answered
        answerCaptor.getValue shouldBe Some("yes")
+       attemptCaptor.getValue shouldBe 0
 
        result shouldBe true
      }
