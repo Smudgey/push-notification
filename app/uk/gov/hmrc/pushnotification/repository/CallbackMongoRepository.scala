@@ -63,7 +63,7 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     Future.sequence(
       Seq(
         collection.indexesManager.ensure(
-          Index(Seq("messageId" -> IndexType.Ascending, "status" -> IndexType.Ascending), name = Some("messageIdAndStatusUnique"), unique = true))
+          Index(Seq("messageId" -> IndexType.Ascending, "status" -> IndexType.Ascending, "attempt" -> IndexType.Ascending), name = Some("messageIdAndStatusAndAttemptUnique"), unique = true))
       )
     )
   }
@@ -71,7 +71,7 @@ class CallbackMongoRepository @Inject()(mongo: DB)
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: PushMessageCallbackPersist): Boolean = newRecordId.equals(oldRecord.id)
 
   override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]] =
-    atomicUpsert(findCallbackByMessageIdAndStatus(messageId, status), insertCallback(messageId, callbackUrl, status, answer, attempt)).
+    atomicUpsert(findCallbackByMessageIdAndStatusAndAttempt(messageId, status, attempt), insertCallback(messageId, callbackUrl, status, answer, attempt)).
       map { r =>
         if (r.writeResult.ok) {
           Right(!r.writeResult.updatedExisting)
@@ -105,8 +105,12 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     }
   }
 
-  def findCallbackByMessageIdAndStatus(messageId: String, status: PushMessageStatus): BSONDocument =
-    BSONDocument("$and" -> BSONArray(BSONDocument("messageId" -> messageId), BSONDocument("status" -> PushMessageStatus.ordinal(status))))
+  def findCallbackByMessageIdAndStatusAndAttempt(messageId: String, status: PushMessageStatus, attempt: Int): BSONDocument =
+    BSONDocument("$and" -> BSONArray(
+      BSONDocument("messageId" -> messageId),
+      BSONDocument("status" -> PushMessageStatus.ordinal(status)),
+      BSONDocument("attempt" -> attempt)
+    ))
 
   def insertCallback(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int): BSONDocument = {
     val callback = BSONDocument(

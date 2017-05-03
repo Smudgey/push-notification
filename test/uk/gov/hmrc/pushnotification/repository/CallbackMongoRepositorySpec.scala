@@ -48,7 +48,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
   }
 
   "CallbackMongoRepository indexes" should {
-    "not be able to insert duplicate messageId/status combinations" in new Setup {
+    "not be able to insert duplicate messageId/status/attempt combinations" in new Setup {
       val saved = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someMessageStatus, None)
 
       await(repository.insert(saved))
@@ -56,10 +56,19 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       a[DatabaseException] should be thrownBy await(repository.insert(saved.copy(id = BSONObjectID.generate, callbackUrl = otherUrl)))
     }
 
-    "be able to insert multiple messages with the same messageId but different statuses" in new Setup {
+    "be able to insert multiple messages with the same messageId and attempt but different statuses" in new Setup {
       await(repository.save(someMessageId, someUrl, someMessageStatus, None))
 
       val actual: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, otherMessageStatus, someAnswer))
+
+      actual.isRight shouldBe true
+      actual.right.get shouldBe true
+    }
+
+    "be able to insert multiple messages with the same messageId and status but different attempts" in new Setup {
+      await(repository.save(someMessageId, someUrl, someMessageStatus, someAnswer, 1))
+
+      val actual: Either[String, Boolean] = await(repository.save(someMessageId, someUrl, someMessageStatus, someAnswer, 2))
 
       actual.isRight shouldBe true
       actual.right.get shouldBe true
