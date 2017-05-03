@@ -28,7 +28,7 @@ object PushMessageStatus {
   val statuses = List("acknowledge", "acknowledged", "answer", "answered", "timeout", "timed-out", "failed")
 
   case object Acknowledge extends PushMessageStatus {
-    override def toString: String = statuses(0)
+    override def toString: String = statuses.head
   }
 
   case object Acknowledged extends PushMessageStatus {
@@ -72,7 +72,7 @@ object PushMessageStatus {
   }
 
   val writesToRepository: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
-    override def writes(status: PushMessageStatus): JsNumber = JsNumber(ordinal(status)) //status match {
+    override def writes(status: PushMessageStatus): JsNumber = JsNumber(ordinal(status))
   }
 
   implicit val formats = Format(PushMessageStatus.readsFromRepository, PushMessageStatus.writesToRepository)
