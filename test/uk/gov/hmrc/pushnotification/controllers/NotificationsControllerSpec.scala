@@ -60,8 +60,8 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
   }
 
   private trait Success extends Setup {
-    val someNotification = Notification(messageId = "msg-id-1", endpoint = "end:point:a", content = "Hello world", notificationId = Some("ntfy-id-1"), status = Sent)
-    val otherNotification = Notification(messageId = "msg-id-1", endpoint = "end:point:b", content = "Goodbye", notificationId = Some("ntfy-id-2"), status = Sent)
+    val someNotification = Notification(messageId = Some("msg-id-1"), endpoint = "end:point:a", content = "Hello world", notificationId = Some("ntfy-id-1"), status = Sent, os = "windows")
+    val otherNotification = Notification(messageId = Some("msg-id-1"), endpoint = "end:point:b", content = "Goodbye", notificationId = Some("ntfy-id-2"), status = Sent, os = "windows")
 
     when(mockService.getUnsentNotifications).thenReturn(Future(Seq(someNotification, otherNotification)))
     when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, true, true)))
@@ -88,8 +88,8 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
         """[
-          |{"id":"ntfy-id-1","endpointArn":"end:point:a","message":"Hello world"},
-          |{"id":"ntfy-id-2","endpointArn":"end:point:b","message":"Goodbye"}
+          |{"id":"ntfy-id-1","endpointArn":"end:point:a","message":"Hello world", "messageId":"msg-id-1","os":"windows"},
+          |{"id":"ntfy-id-2","endpointArn":"end:point:b","message":"Goodbye", "messageId":"msg-id-1","os":"windows"}
           |]""".stripMargin)
     }
 

@@ -56,8 +56,8 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
 
       for (
         messageId <- Future(UUID.randomUUID().toString);
-        endpoints <- connector.endpointsForAuthId(auth.authInternalId);
-        _ <- createNotifications(auth.authInternalId, messageId, endpoints, message)
+        endpointsWithOs <- connector.endpointsForAuthId(auth.authInternalId);
+        _ <- createNotifications(auth.authInternalId, endpointsWithOs, message, Some(messageId))
       ) yield messageId
     }
   }
@@ -78,13 +78,13 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     ) yield (saved, message)
   }
 
-  private def createNotifications(authId: String, messageId: String, endpoints: Seq[String], message: String): Future[Seq[String]] = {
-    Future.sequence(endpoints.map { endpoint =>
-      val notification = Notification(messageId, endpoint = endpoint, content = message)
+  private def createNotifications(authId: String, endpoints: Map[String, String], message: String, messageId: Option[String]) = {
+    Future.sequence(endpoints.map { endpointAndOs =>
+      val notification = Notification(endpoint = endpointAndOs._1, content = message, messageId = messageId, os = endpointAndOs._2)
       notificationRepository.save(authId, notification).map {
         case Right(n) => n.notificationId
         case Left(e) => throw new ServiceUnavailableException(e)
       }
-    })
+    } toSeq)
   }
 }

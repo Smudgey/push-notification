@@ -42,11 +42,12 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     val someEndpoint = "foo:bar:baz"
     val otherEndpoint = "wibble:wubble:wobble"
     val someContent = "a very important message"
+    val someOs = "windows"
     val someNotificationId = "msg-id-1"
     val otherNotificationId = "msg-id-2"
 
-    val somePersisted = NotificationPersist(BSONObjectID.generate, someMessageId, someAuthId, someEndpoint, someContent, someNotificationId, Sent, 1)
-    val otherPersisted = NotificationPersist(BSONObjectID.generate, someMessageId, someAuthId, otherEndpoint, someContent, otherNotificationId, Sent, 2)
+    val somePersisted = NotificationPersist(BSONObjectID.generate, someNotificationId, Some(someMessageId), someAuthId, someEndpoint, someContent,someOs , Sent, 1)
+    val otherPersisted = NotificationPersist(BSONObjectID.generate, otherNotificationId, Some(someMessageId), someAuthId, otherEndpoint, someContent, someOs, Sent, 2)
 
     val updates = Map(someNotificationId -> Delivered, otherNotificationId -> Queued)
   }

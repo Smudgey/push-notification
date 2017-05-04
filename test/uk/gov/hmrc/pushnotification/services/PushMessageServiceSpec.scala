@@ -60,7 +60,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val brokenAuth = Authority(Nino("CS700102A"), L200, "int-auth-id-3")
     val someTemplateName = "hello"
     val someParams = Seq("Bob")
-    val endpoints = Seq("foo", "bar", "baz")
+    val endpointsWithOs = Map("foo" -> "windows", "bar" -> "android", "baz" -> "ios")
     val someTemplate = Template(someTemplateName, someParams: _*)
 
     val someMessageId = "msg-some-id"
@@ -75,35 +75,35 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   private trait Success extends Setup {
-    doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
-    doReturn(failed(new NotFoundException("No endpoints")), Nil: _* ).when(mockConnector).endpointsForAuthId(matches(otherAuth.authInternalId))(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
-    doAnswer(new Answer[Future[Either[String,NotificationPersist]]] {
+    doReturn(successful(endpointsWithOs), Nil: _*).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
+    doReturn(failed(new NotFoundException("No endpoints")), Nil: _*).when(mockConnector).endpointsForAuthId(matches(otherAuth.authInternalId))(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
+    doAnswer(new Answer[Future[Either[String, NotificationPersist]]] {
       override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, NotificationPersist]] = {
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
         val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
-        successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, actualNotification.endpoint + "-ntfy-id", actualNotification.status, 1)))
+        successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.endpoint + "-ntfy-id", actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, actualNotification.os, actualNotification.status, 1)))
       }
-    }).when(mockNotificationRepository).save(matches(someAuth.authInternalId),any[Notification]())
+    }).when(mockNotificationRepository).save(matches(someAuth.authInternalId), any[Notification]())
 
-    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
-    doReturn(successful(Right(true)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Right(true)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   private trait Duplicate extends Setup {
-    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
-    doReturn(successful(Right(true)), Nil: _* ).doReturn(successful(Right(false)), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Right(true)), Nil: _*).doReturn(successful(Right(false)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   private trait Invalid extends Setup {
-    doReturn(successful(None), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(None), Nil: _*).when(mockMessageRepository).find(matches(someMessageId))
   }
 
   private trait Failed extends Setup {
-    doReturn(successful(endpoints), Nil: _* ).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Seq[String]]](), any[ExecutionContext]())
-    doReturn(successful(Some(savedMessage)), Nil: _* ).when(mockMessageRepository).find(matches(someMessageId))
-    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockNotificationRepository).save(matches(brokenAuth.authInternalId),any[Notification]())
-    doReturn(successful(Left("Failed to save the thing")), Nil: _* ).when(mockCallbackRepository).save(any[String](),any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    doReturn(successful(endpointsWithOs), Nil: _*).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
+    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId))
+    doReturn(successful(Left("Failed to save the thing")), Nil: _*).when(mockNotificationRepository).save(matches(brokenAuth.authInternalId), any[Notification]())
+    doReturn(successful(Left("Failed to save the thing")), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   "PushMessageService sendTemplateMessage" should {
@@ -112,14 +112,16 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
       val result: String = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
 
-      verify(mockNotificationRepository, times(endpoints.size)).save(any[String](), notificationCaptor.capture())
+      verify(mockNotificationRepository, times(endpointsWithOs.size)).save(any[String](), notificationCaptor.capture())
 
       val actualNotifications = asScalaBuffer(notificationCaptor.getAllValues)
 
-      endpoints.forall{ ep => actualNotifications.count{ n => n.endpoint == ep & n.messageId == result } == 1 } shouldBe true
+      endpointsWithOs.forall { ep => actualNotifications.count { n => n.endpoint == ep._1 & n.messageId.get == result } == 1 } shouldBe true
 
       result should BeGuid
     }
+
+    //TODO Added tests for sending a message with and without a messageId.
 
     "throw an unauthorized exception given an empty authority" in new Success {
       val result = intercept[UnauthorizedException] {
@@ -157,31 +159,31 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService respondToMessage" should {
-     "save the acknowledgement with the callback url and return true given a valid message id" in new Success {
-       val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-       val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-       val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
-       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
-       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
+    "save the acknowledgement with the callback url and return true given a valid message id" in new Success {
+      val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+      val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+      val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
+      val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+      val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-       val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledged, None))
+      val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledged, None))
 
-       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
+      verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
-       idCaptor.getValue shouldBe someMessageId
-       urlCaptor.getValue shouldBe someUrl
-       statusCaptor.getValue shouldBe Acknowledged
-       answerCaptor.getValue shouldBe None
-       attemptCaptor.getValue shouldBe 0
+      idCaptor.getValue shouldBe someMessageId
+      urlCaptor.getValue shouldBe someUrl
+      statusCaptor.getValue shouldBe Acknowledged
+      answerCaptor.getValue shouldBe None
+      attemptCaptor.getValue shouldBe 0
 
-       val message = maybeMessage.getOrElse(fail("should have returned message details"))
+      val message = maybeMessage.getOrElse(fail("should have returned message details"))
 
-       message.messageId shouldBe someMessageId
-       message.callbackUrl shouldBe someUrl
-       message.subject shouldBe someSubject
-       message.body shouldBe someBody
-       message.responses shouldBe someResponses
-     }
+      message.messageId shouldBe someMessageId
+      message.callbackUrl shouldBe someUrl
+      message.subject shouldBe someSubject
+      message.body shouldBe someBody
+      message.responses shouldBe someResponses
+    }
 
      "save the answer with the callback url and return true given a valid message id and answer" in new Success {
        val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
