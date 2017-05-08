@@ -19,7 +19,9 @@ package uk.gov.hmrc.pushnotification.services
 import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
+import org.joda.time.Duration
 import play.api.Logger
+import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
@@ -30,37 +32,52 @@ import scala.concurrent.Future
 @ImplementedBy(classOf[NotificationsService])
 trait NotificationsServiceApi {
 
-  def getUnsentNotifications: Future[Seq[Notification]]
+  def getUnsentNotifications: Future[Option[Seq[Notification]]]
 
-  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]]
+  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Option[Seq[Boolean]]]
 }
 
 @Singleton
-class NotificationsService @Inject()(repository: PushNotificationRepositoryApi) extends NotificationsServiceApi {
+class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository) extends NotificationsServiceApi {
+  val getUnsentLockKeeper = new LockKeeper {
+    override def repo: LockRepository = lockRepository
+    override def lockId: String = "getUnsentNotifications"
+    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
+  }
 
-  override def getUnsentNotifications: Future[Seq[Notification]] = {
-    repository.getUnsentNotifications.map(
-      _.map(np =>
-        Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
-    ).recover{
-      case e: Exception =>
-        Logger.error(s"Unable to retrieve unsent notifications: ${e.getMessage}")
-        throw new ServiceUnavailableException(s"Unable to retrieve unsent notifications")
+  val updateNotificationsLockKeeper = new LockKeeper {
+    override def repo: LockRepository = lockRepository
+    override def lockId: String = "updateNotifications"
+    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
+  }
+
+  override def getUnsentNotifications: Future[Option[Seq[Notification]]] = {
+    getUnsentLockKeeper.tryLock {
+      notificationRepository.getUnsentNotifications.map(
+        _.map(np =>
+          Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
+      ).recover {
+        case e: Exception =>
+          Logger.error(s"Unable to retrieve unsent notifications: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to retrieve unsent notifications")
+      }
     }
   }
 
-  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]] = {
-    val updated = updates.map(s => repository.update(s._1, s._2).map {
-      case Right(_) => true
-      case Left(msg) =>
-        Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
-        false
-    }.recover{
-      case e: Exception =>
-        Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
-        throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
-    }).toSeq
+  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Option[Seq[Boolean]]] = {
+    updateNotificationsLockKeeper.tryLock {
+      val updated = updates.map(s => notificationRepository.update(s._1, s._2).map {
+        case Right(_) => true
+        case Left(msg) =>
+          Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
+          false
+      }.recover {
+        case e: Exception =>
+          Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
+      }).toSeq
 
-    Future.sequence(updated)
+      Future.sequence(updated)
+    }
   }
 }

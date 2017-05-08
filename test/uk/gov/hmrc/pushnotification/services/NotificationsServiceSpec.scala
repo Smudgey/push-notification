@@ -16,12 +16,14 @@
 
 package uk.gov.hmrc.pushnotification.services
 
+import org.joda.time.Duration
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.doReturn
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
+import uk.gov.hmrc.lock.LockRepository
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
@@ -33,9 +35,10 @@ import scala.concurrent.Future.{failed, successful}
 
 class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplication with StubApplicationConfiguration {
   private trait Setup extends MockitoSugar {
-    val mockRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
+    val notificationRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
+    val lockRepository: LockRepository = mock[LockRepository]
 
-    val service = new NotificationsService(mockRepository)
+    val service = new NotificationsService(notificationRepository, lockRepository)
 
     val someMessageId = "msg-id-abcd-1234"
     val someAuthId = "bob-id"
@@ -52,24 +55,31 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     val updates = Map(someNotificationId -> Delivered, otherNotificationId -> Queued)
   }
 
-  private trait Success extends Setup {
-    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(mockRepository).getUnsentNotifications
-    doReturn(successful(Right(somePersisted)), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(someNotificationId), any[NotificationStatus]())
-    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(mockRepository).update(ArgumentMatchers.eq(otherNotificationId), any[NotificationStatus]())
+  private trait LockOK extends Setup {
+    doReturn(successful(true), Nil: _* ).when(lockRepository).lock(any[String](), any[String](), any[Duration]())
+    doReturn(successful({}), Nil: _* ).when(lockRepository).releaseLock(any[String](), any[String]())
   }
 
-  private trait Failed extends Setup {
-    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(mockRepository).getUnsentNotifications
-    doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(mockRepository).update(any[String](), any[NotificationStatus]())
+  private trait Success extends LockOK {
+    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getUnsentNotifications
+    doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(someNotificationId), any[NotificationStatus]())
+    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(otherNotificationId), any[NotificationStatus]())
+  }
+
+  private trait Failed extends LockOK {
+    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getUnsentNotifications
+    doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[String](), any[NotificationStatus]())
   }
 
   "NotificationsService getUnsentNotifications" should {
     "return a list of messages when unsent notifications are available" in new Success {
-      val result: Seq[Notification] = await(service.getUnsentNotifications)
+      val result: Option[Seq[Notification]] = await(service.getUnsentNotifications)
 
-      result.size shouldBe 2
-      result.head.endpoint shouldBe someEndpoint
-      result(1).endpoint shouldBe otherEndpoint
+      val actualNotifications: Seq[Notification] = result.getOrElse(fail("should have found notifications"))
+
+      actualNotifications.size shouldBe 2
+      actualNotifications.head.endpoint shouldBe someEndpoint
+      actualNotifications(1).endpoint shouldBe otherEndpoint
     }
 
     "throw a service unavailable exception given an issue with the repository" in new Failed {
@@ -84,10 +94,11 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
   "NotificationsService updateNotifications" should {
     "update notifications in the repository" in new Success {
 
-      val result: Seq[Boolean] = await(service.updateNotifications(updates))
+      val result: Option[Seq[Boolean]] = await(service.updateNotifications(updates))
 
-      result.head shouldBe true
-      result(1) shouldBe false
+      val actualUpdates: Seq[Boolean] = result.getOrElse(fail("should have done updates"))
+      actualUpdates.head shouldBe true
+      actualUpdates(1) shouldBe false
     }
 
     "throw a service unavailable exception given repository problems" in new Failed {

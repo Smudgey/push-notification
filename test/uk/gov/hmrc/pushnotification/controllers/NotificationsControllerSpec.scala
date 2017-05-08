@@ -63,16 +63,21 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
     val someNotification = Notification(messageId = Some("msg-id-1"), endpoint = "end:point:a", content = "Hello world", notificationId = Some("ntfy-id-1"), status = Sent, os = "windows")
     val otherNotification = Notification(messageId = Some("msg-id-1"), endpoint = "end:point:b", content = "Goodbye", notificationId = Some("ntfy-id-2"), status = Sent, os = "windows")
 
-    when(mockService.getUnsentNotifications).thenReturn(Future(Seq(someNotification, otherNotification)))
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, true, true)))
+    when(mockService.getUnsentNotifications).thenReturn(Future(Some(Seq(someNotification, otherNotification))))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Some(Seq(true, true, true))))
   }
 
   private trait NoNotifications extends Setup {
-    when(mockService.getUnsentNotifications).thenReturn(Future(Seq.empty))
+    when(mockService.getUnsentNotifications).thenReturn(Future(Some(Seq.empty)))
+  }
+
+  private trait LockFailed extends Setup {
+    when(mockService.getUnsentNotifications).thenReturn(Future(None))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(None))
   }
 
   private trait Partial extends Setup {
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, false, true, true)))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Some(Seq(true, false, true, true))))
   }
 
   private trait RepositoryFailure extends Setup {
@@ -100,6 +105,14 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"NOT_FOUND","message":"No unsent notifications"}""")
     }
 
+    "return Service Unavailable (503) when it is not possible to obtain the mongo lock" in new LockFailed {
+      val result: Result = await(controller.getUnsentNotifications()(emptyRequest))
+
+      status(result) shouldBe 503
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
+
+    }
+
     "return Server Error (500) when a ServiceUnavailableException is thrown by service" in new RepositoryFailure {
       val result: Result = await(controller.getUnsentNotifications()(emptyRequest))
 
@@ -125,6 +138,12 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       val result: Result = await(controller.updateNotifications()(invalidRequest))
 
       status(result) shouldBe 400
+    }
+
+    "return Service Unavailable (503) when it is not possible to obtain the mongo lock" in new LockFailed {
+      val result: Result = await(controller.updateNotifications()(updateRequest))
+
+      status(result) shouldBe 503
     }
 
     "return Server Error (500) when a ServiceUnavailableException is thrown by service" in new RepositoryFailure {

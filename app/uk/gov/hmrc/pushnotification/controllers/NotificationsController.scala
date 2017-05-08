@@ -21,10 +21,10 @@ import javax.inject.{Inject, Singleton}
 import com.google.inject.ImplementedBy
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, AnyContent, BodyParsers, Result}
+import play.api.mvc.{Action, AnyContent, BodyParsers}
 import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus
+import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.services.NotificationsServiceApi
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -34,9 +34,11 @@ import scala.concurrent.{ExecutionContext, Future}
 trait NotificationsControllerApi extends BaseController with ErrorHandling {
   val NoUnsentNotifications: JsValue = Json.parse("""{"code":"NOT_FOUND","message":"No unsent notifications"}""")
 
-  def getUnsentNotifications : Action[AnyContent]
+  val LockFailed: JsValue = Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
 
-  def updateNotifications : Action[JsValue]
+  def getUnsentNotifications: Action[AnyContent]
+
+  def updateNotifications: Action[JsValue]
 }
 
 @Singleton
@@ -47,13 +49,17 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
     implicit request =>
       implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
 
-    errorWrapper(service.getUnsentNotifications.map { response =>
-      if (response.isEmpty) {
-        NotFound(NoUnsentNotifications)
+      errorWrapper(service.getUnsentNotifications.map { (result: Option[Seq[Notification]]) =>
+        result.map { notifications =>
+          if (notifications.isEmpty) {
+            NotFound(NoUnsentNotifications)
+          }
+          else {
+            Ok(Json.toJson(notifications))
+          }
+        }.getOrElse(ServiceUnavailable(LockFailed))
       }
-      else
-        Ok(Json.toJson(response))
-    })
+      )
   }
 
   override def updateNotifications: Action[JsValue] = Action.async(BodyParsers.parse.json) {
@@ -66,12 +72,14 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
           Future.successful(BadRequest)
         },
         updates => {
-          errorWrapper(service.updateNotifications(updates).map { s =>
-            if (s.foldLeft(true)(_ && _)) {
-              NoContent
-            } else {
-              Accepted
-            }
+          errorWrapper(service.updateNotifications(updates).map { (result: Option[Seq[Boolean]]) =>
+            result.map { updates =>
+              if (updates.foldLeft(true)(_ && _)) {
+                NoContent
+              } else {
+                Accepted
+              }
+            }.getOrElse(ServiceUnavailable(LockFailed))
           })
         })
   }
