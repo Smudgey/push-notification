@@ -19,7 +19,9 @@ package uk.gov.hmrc.pushnotification.services
 import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
+import org.joda.time.Duration
 import play.api.Logger
+import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answer, Answered, PermanentlyFailed, Timedout, Timeout}
 import uk.gov.hmrc.pushnotification.domain.{Callback, PushMessageStatus, Response}
@@ -31,50 +33,70 @@ import scala.concurrent.Future
 @ImplementedBy(classOf[CallbackService])
 trait CallbackServiceApi {
 
-  def getUndeliveredCallbacks: Future[Seq[Callback]]
+  def getUndeliveredCallbacks: Future[Option[Seq[Callback]]]
 
-  def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]]
+  def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]]
 }
 
 @Singleton
-class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int) extends CallbackServiceApi {
+class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int, lockRepository: LockRepository) extends CallbackServiceApi {
   val completionMap: Map[PushMessageStatus, PushMessageStatus] = Map(Acknowledge -> Acknowledged, Answer -> Answered, Timeout -> Timedout)
 
-  override def getUndeliveredCallbacks: Future[Seq[Callback]] = {
-    repository.findUndelivered.map(
-      _.map(cb =>
-        Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
-      )
-    ).recover {
-      case e: Exception =>
-        Logger.error(s"Unable to retrieve undelivered callbacks: ${e.getMessage}")
-        throw new ServiceUnavailableException(s"Unable to retrieve undelivered callbacks")
+  val getDeliveredLockKeeper = new LockKeeper {
+    override def repo: LockRepository = lockRepository
+
+    override def lockId: String = "getUndeliveredCallbacks"
+
+    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
+  }
+
+  val getUpdateCallbacksLockKeeper = new LockKeeper {
+    override def repo: LockRepository = lockRepository
+
+    override def lockId: String = "updateCallbacks"
+
+    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
+  }
+
+  override def getUndeliveredCallbacks: Future[Option[Seq[Callback]]] = {
+    getDeliveredLockKeeper.tryLock {
+      repository.findUndelivered.map(
+        _.map(cb =>
+          Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
+        )
+      ).recover {
+        case e: Exception =>
+          Logger.error(s"Unable to retrieve undelivered callbacks: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to retrieve undelivered callbacks")
+      }
     }
   }
 
-  override def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]] = {
-    Future.sequence(updates.map(s => repository.findLatest(s._1).flatMap {
-      case Some(cb) =>
-        val status = if (s._2) {
-          completionMap.getOrElse(cb.status, PermanentlyFailed)
-        } else {
-          if (cb.attempt < maxAttempts) {
-            cb.status
+  override def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]] = {
+    getUpdateCallbacksLockKeeper.tryLock {
+      Future.sequence(updates.map(s => repository.findLatest(s._1).flatMap {
+        case Some(cb) =>
+          val status = if (s._2) {
+            completionMap.getOrElse(cb.status, PermanentlyFailed)
           } else {
-            PermanentlyFailed
+            if (cb.attempt < maxAttempts) {
+              cb.status
+            } else {
+              PermanentlyFailed
+            }
           }
-        }
-        repository.save(cb.messageId, cb.callbackUrl, status, cb.answer, cb.attempt).map {
-          case Right(b) => b
-          case Left(m) => Logger.error(s"Failed to save callback: $m")
-            false
-        }.recover {
-          case e: Exception =>
-            Logger.error(s"Failed to save callback: ${e.getMessage}")
-            throw new ServiceUnavailableException(s"failed to save callback: ${e.getMessage}")
-        }
-      case None => Future(false)
-    }).toSeq
-    )
+          repository.save(cb.messageId, cb.callbackUrl, status, cb.answer, cb.attempt).map {
+            case Right(b) => b
+            case Left(m) => Logger.error(s"Failed to save callback: $m")
+              false
+          }.recover {
+            case e: Exception =>
+              Logger.error(s"Failed to save callback: ${e.getMessage}")
+              throw new ServiceUnavailableException(s"failed to save callback: ${e.getMessage}")
+          }
+        case None => Future(false)
+      }).toSeq
+      )
+    }
   }
 }
