@@ -94,9 +94,8 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
   "NotificationsService updateNotifications" should {
     "update notifications in the repository" in new Success {
 
-      val result: Option[Seq[Boolean]] = await(service.updateNotifications(updates))
+      val actualUpdates: Seq[Boolean] = await(service.updateNotifications(updates))
 
-      val actualUpdates: Seq[Boolean] = result.getOrElse(fail("should have done updates"))
       actualUpdates.head shouldBe true
       actualUpdates(1) shouldBe false
     }

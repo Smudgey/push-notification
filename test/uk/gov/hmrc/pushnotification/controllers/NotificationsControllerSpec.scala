@@ -64,7 +64,7 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
     val otherNotification = Notification(messageId = Some("msg-id-1"), endpoint = "end:point:b", content = "Goodbye", notificationId = Some("ntfy-id-2"), status = Sent, os = "windows")
 
     when(mockService.getUnsentNotifications).thenReturn(Future(Some(Seq(someNotification, otherNotification))))
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Some(Seq(true, true, true))))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, true, true)))
   }
 
   private trait NoNotifications extends Setup {
@@ -73,11 +73,10 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
 
   private trait LockFailed extends Setup {
     when(mockService.getUnsentNotifications).thenReturn(Future(None))
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(None))
   }
 
   private trait Partial extends Setup {
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Some(Seq(true, false, true, true))))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String,NotificationStatus]]())).thenReturn(Future(Seq(true, false, true, true)))
   }
 
   private trait RepositoryFailure extends Setup {
@@ -138,12 +137,6 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
       val result: Result = await(controller.updateNotifications()(invalidRequest))
 
       status(result) shouldBe 400
-    }
-
-    "return Service Unavailable (503) when it is not possible to obtain the mongo lock" in new LockFailed {
-      val result: Result = await(controller.updateNotifications()(updateRequest))
-
-      status(result) shouldBe 503
     }
 
     "return Server Error (500) when a ServiceUnavailableException is thrown by service" in new RepositoryFailure {

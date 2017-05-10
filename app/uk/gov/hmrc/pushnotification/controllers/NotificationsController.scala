@@ -72,14 +72,12 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
           Future.successful(BadRequest)
         },
         updates => {
-          errorWrapper(service.updateNotifications(updates).map { (result: Option[Seq[Boolean]]) =>
-            result.map { updates =>
-              if (updates.foldLeft(true)(_ && _)) {
-                NoContent
-              } else {
-                Accepted
-              }
-            }.getOrElse(ServiceUnavailable(LockFailed))
+          errorWrapper(service.updateNotifications(updates).map { updates =>
+            if (updates.foldLeft(true)(_ && _)) {
+              NoContent
+            } else {
+              Accepted
+            }
           })
         })
   }

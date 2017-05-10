@@ -34,20 +34,16 @@ trait NotificationsServiceApi {
 
   def getUnsentNotifications: Future[Option[Seq[Notification]]]
 
-  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Option[Seq[Boolean]]]
+  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]]
 }
 
 @Singleton
 class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository) extends NotificationsServiceApi {
   val getUnsentLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
-    override def lockId: String = "getUnsentNotifications"
-    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
-  }
 
-  val updateNotificationsLockKeeper = new LockKeeper {
-    override def repo: LockRepository = lockRepository
-    override def lockId: String = "updateNotifications"
+    override def lockId: String = "getUnsentNotifications"
+
     override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
   }
 
@@ -64,20 +60,18 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
     }
   }
 
-  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Option[Seq[Boolean]]] = {
-    updateNotificationsLockKeeper.tryLock {
-      val updated = updates.map(s => notificationRepository.update(s._1, s._2).map {
-        case Right(_) => true
-        case Left(msg) =>
-          Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
-          false
-      }.recover {
-        case e: Exception =>
-          Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
-          throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
-      }).toSeq
+  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]] = {
+    val updated = updates.map(s => notificationRepository.update(s._1, s._2).map {
+      case Right(_) => true
+      case Left(msg) =>
+        Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
+        false
+    }.recover {
+      case e: Exception =>
+        Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
+        throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
+    }).toSeq
 
-      Future.sequence(updated)
-    }
+    Future.sequence(updated)
   }
 }
