@@ -58,7 +58,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val otherMessageId = "msg-other-id"
 
     val acceptHeader = "Accept" -> "application/vnd.hmrc.1.0+json"
-    val template = Template("hello", "world")
+    val template = Template("NGC_002", Map("fullName" -> "Inspector Gadget", "agent" -> "Agent 47"))
     val templateJsonBody: JsValue = Json.toJson(template)
 
     val messageRequest = fakeRequest(templateJsonBody).withHeaders(acceptHeader)
@@ -75,7 +75,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   private trait Success extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
-    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("foo"))
+    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, someMessage)))
   }
 
@@ -85,7 +85,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   private trait AuthFailure extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(throw new NoInternalId("missing internal id")))
-    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future("bar"))
+    when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("bar")))
   }
 
   private trait TemplateFailure extends Setup {

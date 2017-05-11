@@ -16,11 +16,9 @@
 
 package uk.gov.hmrc.pushnotification.services
 
-import java.util.UUID
 import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
-import play.api.Logger
 import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
@@ -35,7 +33,7 @@ import scala.concurrent.Future
 trait PushMessageServiceApi extends Auditor {
   override val auditConnector = MicroserviceAuditConnector
 
-  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String]
+  def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
 }
@@ -43,21 +41,17 @@ trait PushMessageServiceApi extends Auditor {
 @Singleton
 class PushMessageService @Inject()(connector: PushRegistrationConnector, notificationRepository: PushNotificationRepositoryApi, messageRepository: PushMessageRepositoryApi, callbackRepository: CallbackRepositoryApi) extends PushMessageServiceApi {
 
-  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[String] = {
+  override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]] = {
     withAudit("sendTemplateMessage", Map.empty) {
       val auth = authority.getOrElse {
         return Future.failed(new UnauthorizedException("No Authority record found for request!"))
       }
 
-      val message = template.complete().getOrElse {
-        Logger.error(s"no such template '${template.name}'")
-        return Future.failed(new BadRequestException(s"No such template '${template.name}'"))
-      }
-
+      val message = template.complete()
       for (
-        messageId <- Future(UUID.randomUUID().toString);
+        messageId <- persistPushMessage(message.message, auth.authInternalId);
         endpointsWithOs <- connector.endpointsForAuthId(auth.authInternalId);
-        _ <- createNotifications(auth.authInternalId, endpointsWithOs, message, Some(messageId))
+        _ <- createNotifications(auth.authInternalId, endpointsWithOs, message.notification, messageId)
       ) yield messageId
     }
   }
@@ -86,5 +80,14 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
         case Left(e) => throw new ServiceUnavailableException(e)
       }
     } toSeq)
+  }
+
+  private def persistPushMessage(pushMessage: Option[PushMessage], authId: String) : Future[Option[String]] =  {
+    pushMessage.fold(Future[Option[String]](None)) { pm =>
+       messageRepository.save(authId, pm).map {
+          case Right(persist) => Option(persist.messageId)
+          case Left(error) => throw new Exception(error)
+       }
+    }
   }
 }
