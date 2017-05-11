@@ -38,7 +38,7 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     val notificationRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
     val lockRepository: LockRepository = mock[LockRepository]
 
-    val service = new NotificationsService(notificationRepository, lockRepository)
+    val service = new NotificationsService(notificationRepository, lockRepository, 100)
 
     val someMessageId = "msg-id-abcd-1234"
     val someAuthId = "bob-id"

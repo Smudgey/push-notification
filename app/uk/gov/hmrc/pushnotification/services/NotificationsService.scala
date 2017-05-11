@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.pushnotification.services
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
 import org.joda.time.Duration
@@ -38,7 +38,7 @@ trait NotificationsServiceApi {
 }
 
 @Singleton
-class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository) extends NotificationsServiceApi {
+class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository, @Named("unsentNotificationsMaxBatchSize") maxBatchSize: Int) extends NotificationsServiceApi {
   val getUnsentLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
 
@@ -49,7 +49,7 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
 
   override def getUnsentNotifications: Future[Option[Seq[Notification]]] = {
     getUnsentLockKeeper.tryLock {
-      notificationRepository.getUnsentNotifications(100).map(
+      notificationRepository.getUnsentNotifications(maxBatchSize).map(
         _.map(np =>
           Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
       ).recover {
