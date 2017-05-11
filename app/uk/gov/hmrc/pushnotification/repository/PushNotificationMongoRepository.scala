@@ -130,7 +130,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       )
     }
 
-    def batchOrFailed(batch: List[NotificationPersist], updateWriteResult: UpdateWriteResult) = {
+    def getBatchOrFailed(batch: List[NotificationPersist], updateWriteResult: UpdateWriteResult) = {
       if (updateWriteResult.ok) {
         Future.successful(batch.map(n => n.copy(attempts = n.attempts + 1)))
       } else {
@@ -142,8 +142,8 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
 
     for (
       batch <- getUnsentNotificationBatch;
-      updateWriteResult <- setSent(batch);
-      unsentNotifications <- batchOrFailed(batch, updateWriteResult)
+      updateResult <- setSent(batch);
+      unsentNotifications <- getBatchOrFailed(batch, updateResult)
     ) yield unsentNotifications
   }
 
