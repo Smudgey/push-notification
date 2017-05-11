@@ -24,6 +24,7 @@ import play.api.Mode.Mode
 import play.api.{Configuration, Environment}
 import play.modules.reactivemongo.ReactiveMongoComponent
 import reactivemongo.api.DB
+import uk.gov.hmrc.lock.{LockMongoRepository, LockRepository}
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
 import uk.gov.hmrc.play.config.ServicesConfig
@@ -38,10 +39,12 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
     bind(classOf[HttpGet]).to(classOf[WSHttp])
     bind(classOf[AuditConnector]).to(classOf[MicroserviceAuditConnector])
     bind(classOf[DB]).toProvider(classOf[MongoDbProvider])
+    bind(classOf[LockRepository]).toProvider(classOf[LockRepositoryProvider])
 
     bind(classOf[String]).annotatedWith(named("pushRegistrationUrl")).toInstance(baseUrl("push-registration"))
     bind(classOf[String]).annotatedWith(named("authUrl")).toInstance(baseUrl("auth"))
     bind(classOf[Int]).annotatedWith(named("sendNotificationMaxRetryAttempts")).toInstance(configuration.getInt("sendNotificationMaxRetryAttempts").getOrElse(3))
+    bind(classOf[Int]).annotatedWith(named("clientCallbackMaxRetryAttempts")).toInstance(configuration.getInt("clientCallbackMaxRetryAttempts").getOrElse(3))
 
     bind(classOf[ConfidenceLevel]).toInstance(ConfidenceLevel.fromInt(configuration.getInt("controllers.confidenceLevel")
       .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level"))))
@@ -50,4 +53,8 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
 
 class MongoDbProvider @Inject() (reactiveMongoComponent: ReactiveMongoComponent) extends Provider[DB] {
   def get = reactiveMongoComponent.mongoConnector.db()
+}
+
+class LockRepositoryProvider @Inject() (mongo: DB) extends Provider[LockRepository] {
+  def get = LockMongoRepository(() => mongo)
 }

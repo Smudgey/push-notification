@@ -23,3 +23,9 @@ case class Response(messageId: String, answer: Option[String] = None)
 object Response {
   implicit val formats = Json.format[Response]
 }
+
+case class Callback(callbackUrl: String, status: PushMessageStatus, response: Response, attempt: Int)
+
+object Callback {
+  implicit val formats = Json.format[Callback]
+}
