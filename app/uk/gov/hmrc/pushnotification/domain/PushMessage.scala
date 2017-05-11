@@ -96,17 +96,4 @@ object PushMessage {
       }
     }
   }
-
-//  implicit val reads: Reads[PushMessage] = (
-//      (JsPath \ "subject").read[String] and
-//      (JsPath \ "body").read[String] and
-//      (JsPath \ "callbackUrl").read[String] and
-//      (JsPath \ "responses").read[Map[String,String]](readsMap) and
-//      (JsPath \ "messageId").read[String]
-//    )(PushMessage.apply _)
-//
-//  implicit val readsMap: Reads[Map[String,String]] = {
-//    (JsPath \ "responses"). read[Map[String, String]]
-//  }
-
 }
