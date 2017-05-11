@@ -16,14 +16,34 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
-import play.api.libs.json.Json
+import play.api.libs.json.{JsSuccess, Json}
+import twirl.TwirlException
+import uk.gov.hmrc.play.http.{BadRequestException, InternalServerException}
 
-case class Template(name: String, params: String*) {
-  private val templates: Map[String, String] = Map("hello" -> "Hello %", "bye" -> "Goodbye!", "more" -> "% more %")
+case class Template(id: String, params: Map[String, String] = Map.empty) {
 
-  def complete(): Option[String] = {
-    templates.find(_._1 == name).map(t => params.foldLeft(t._2)((s, p) => s.replaceFirst("%", p)))
+  def complete(): NotificationMessage = {
+    val template = twirl.txt.templates.render(id, getParamById("messageId"),getParamById("title"), getParamById("firstName"),
+                                                  getParamById("lastName"), getParamById("fullName"),
+                                                  getParamById("agent"), getParamById("callbackUrl"))
+    val result = Json.parse(template.toString())
+    result.validate[NotificationMessage] match {
+      case nm: JsSuccess[NotificationMessage] => nm.get
+      case _ => {
+        result.validate[TwirlException] match {
+          case twirlError: JsSuccess[TwirlException] => {
+            throw new BadRequestException(twirlError.get.exception)
+          }
+          case _ => throw new InternalServerException("Unable to parse template Json, there is a problem with the template")
+        }
+      }
+    }
   }
+
+  private def getParamById(key: String): String = {
+    params.get(key).getOrElse("")
+  }
+
 }
 
 object Template {

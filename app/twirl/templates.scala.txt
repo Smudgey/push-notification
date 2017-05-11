@@ -1,0 +1,58 @@
+@(templateId: String, messageId: String, title: String, firstName: String, lastName: String, fullName: String, agent: String, callbackUrl: String)
+
+@if(templateId == "NGC_001"){
+    {
+      "id": "NGC-001",
+      "notification": "This is a push notification that does nothing else other than show you this text."
+    }
+} else {
+    @if(templateId == "NGC_002"){
+        @if(fullName == "" | agent == "" | callbackUrl == "" | messageId == "") {
+            {
+                "errorType": 400,
+                "exception": "Missing parameter for template @templateId requested"
+            }
+        } else {
+            {
+              "id": "NGC-002",
+              "notification": "@fullName, HMRC has sent you a message",
+              "message": {
+                  "subject": "Your agent has been authorised",
+                  "body": "Your agent, @agent, is now authorised to act on your behalf.If you think this authorisation has been done in error please call us, and we can make everything better +44300200100",
+                  "callbackUrl": "@callbackUrl",
+                  "responses": {},
+                  "messageId": "@messageId"
+              }
+            }
+        }
+    } else {
+          @if(templateId == "NGC_003"){
+              @if(title == "" | firstName == "" | lastName == "" | agent == "" | callbackUrl == "" | messageId == "") {
+                  {
+                      "errorType": 400,
+                      "exception": "Missing parameter for template @templateId requested"
+                  }
+              } else {
+                  {
+                    "id": "NGC-003",
+                    "notification": "@title @firstName @lastName, HMRC has sent you a message",
+                    "message": {
+                      "subject": "You need to authorise your agent",
+                      "body": "You are required to authorise your agent, @agent. If you wish for your agent to act on your behalf with regards to your tax affairs then please tap 'Yes'. Alternatively if you do not want to authorise your agent to act on your behalf then please tap 'No'.",
+                      "callbackUrl": "@callbackUrl",
+                      "responses": {
+                          "Yes": "Yes",
+                          "No": "No"
+                      },
+                      "messageId": "@messageId"
+                    }
+                  }
+              }
+          } else {
+              {
+                    "errorType": 400,
+                    "exception": "Template @templateId not found"
+              }
+          }
+    }
+}

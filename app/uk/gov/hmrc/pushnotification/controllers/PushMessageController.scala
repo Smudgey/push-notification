@@ -55,7 +55,8 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         },
         template => {
           errorWrapper(service.sendTemplateMessage(template)(hc, authenticated.authority).map {
-            id: String => Created(Json.obj("messageId" -> id))
+            case Some(id) => Created(Json.obj("messageId" -> id))
+            case None => Created
           })
         }
       )
