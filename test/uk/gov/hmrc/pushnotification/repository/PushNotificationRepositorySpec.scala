@@ -28,6 +28,7 @@ import uk.gov.hmrc.pushnotification.domain.Notification
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Queued, Sent}
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
 
@@ -207,7 +208,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       queued.size shouldBe 2
 
-      val result: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+      val result: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
 
       result.size shouldBe 2
 
@@ -219,7 +220,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
       val delivered: Seq[NotificationPersist] = await(repository.findByStatus(Delivered))
-      val stillQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+      val stillQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
 
       sent.size shouldBe 2
       delivered.size shouldBe 1
@@ -238,7 +239,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       initiallyQueued.size shouldBe 2
 
       for (_ <- 1 to maxRetryAttempts + 1) {
-        val someQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+        val someQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
 
         someQueued.forall { n =>
           await(repository.update(n.notificationId, Queued)) match {
@@ -248,9 +249,25 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
         } shouldBe true
       }
 
-      val finallyQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications)
+      val finallyQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
 
       finallyQueued.size shouldBe 0
+    }
+
+    "return only max-limit number of notifications when there are more than max-limit queued notifications" in new Setup {
+      val someLimit = 10
+
+      await{
+        Future.sequence((1 to someLimit + 1).map(i => repository.save(s"authId-$i",Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))))
+      }
+
+      val allSaved: List[NotificationPersist] = await(repository.findAll())
+
+      allSaved.size should be > someLimit
+
+      val result = await(repository.getUnsentNotifications(someLimit))
+
+      result.size shouldBe someLimit
     }
   }
 }

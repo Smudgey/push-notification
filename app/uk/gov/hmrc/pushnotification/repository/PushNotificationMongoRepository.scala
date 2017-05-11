@@ -24,6 +24,7 @@ import reactivemongo.api.commands.UpdateWriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{queued, sent}
@@ -99,23 +100,51 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       cursor[NotificationPersist](ReadPreference.primaryPreferred).
       collect[Seq]()
 
-  override def getUnsentNotifications: Future[Seq[NotificationPersist]] = {
-    val updated: BSONDateTime = BSONDateTime(DateTimeUtils.now.getMillis)
+  override def getUnsentNotifications(maxBatchSize: Int): Future[Seq[NotificationPersist]] = {
 
-    val update: Future[UpdateWriteResult] = collection.update(
-      findUnsent(),
-      setSent(updated),
-      upsert = false,
-      multi = true
-    )
-
-    update.flatMap { _ =>
-      collection.
-        find(BSONDocument("updated" -> updated)).
-        sort(Json.obj("updated" -> JsNumber(-1))).
-        cursor[NotificationPersist](ReadPreference.primaryPreferred).
-        collect[Seq]()
+    def getUnsentNotificationBatch = {
+      collection.find(BSONDocument(
+        "$and" -> BSONArray(
+          BSONDocument("status" -> queued),
+          BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
+        )
+      )).
+        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        collect[List](maxBatchSize)
     }
+
+    def setSent(batch: List[NotificationPersist]) = {
+      collection.update(
+        BSONDocument("_id" -> BSONDocument("$in" -> batch.foldLeft(BSONArray())((a, p) => a.add(p.id)))),
+        BSONDocument(
+          "$set" -> BSONDocument(
+            "updated" -> BSONDateTime(DateTimeUtils.now.getMillis),
+            "status" -> sent
+          ),
+          "$inc" -> BSONDocument(
+            "attempts" -> 1
+          )
+        ),
+        upsert = false,
+        multi = true
+      )
+    }
+
+    def batchOrFailed(batch: List[NotificationPersist], updateWriteResult: UpdateWriteResult) = {
+      if (updateWriteResult.ok) {
+        Future.successful(batch.map(n => n.copy(attempts = n.attempts + 1)))
+      } else {
+        Future.failed(new ReactiveMongoException {
+          override def message: String = "failed to fetch unsent notifications"
+        })
+      }
+    }
+
+    for (
+      batch <- getUnsentNotificationBatch;
+      updateWriteResult <- setSent(batch);
+      unsentNotifications <- batchOrFailed(batch, updateWriteResult)
+    ) yield unsentNotifications
   }
 
   def findNotificationByNotificationId(notificationId: Option[String]) = BSONDocument("notificationId" -> notificationId.getOrElse("-1"))
@@ -140,25 +169,6 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     )
     notificationId ++ coreData
   }
-
-  def findUnsent(): BSONDocument =
-    BSONDocument(
-      "$and" -> BSONArray(
-        BSONDocument("status" -> queued),
-        BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
-      )
-    )
-
-  def setSent(updated: BSONDateTime): BSONDocument =
-    BSONDocument(
-      "$set" -> BSONDocument(
-        "updated" -> updated,
-        "status" -> sent
-      ),
-      "$inc" -> BSONDocument(
-        "attempts" -> 1
-      )
-    )
 }
 
 @ImplementedBy(classOf[PushNotificationMongoRepository])
@@ -169,5 +179,5 @@ trait PushNotificationRepositoryApi {
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 
-  def getUnsentNotifications: Future[Seq[NotificationPersist]]
+  def getUnsentNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
 }
