@@ -177,5 +177,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       second.size shouldBe 0
     }
+
+    // TODO: "find undelivered should return only max-limit callbacks when there are more than max-limit undelivered callbacks"
   }
 }
