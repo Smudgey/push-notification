@@ -16,38 +16,54 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
+import java.util.UUID
+
+import uk.gov.hmrc.play.http.BadRequestException
 import uk.gov.hmrc.play.test.UnitSpec
 
 class TemplateSpec extends UnitSpec {
+
   "Template complete" should {
-    "return a completed template given a valid template name and a parameter" in {
-      val result = Template("hello", "Bob").complete()
 
-      result shouldBe Some("Hello Bob")
+    "return a completed template with no message given a valid template name" in {
+      val result = Template("NGC_001").complete()
+
+      result.notification shouldBe "This is a push notification that does nothing else other than show you this text."
+      result.message shouldBe None
     }
 
-    "return a completed template given a valid template name and no parameters" in {
-      val result = Template("bye").complete()
+    "return a completed template populated with params with a message" in {
+      val title = "Mr"
+      val firstName = "Peter"
+      val lastName = "Parker"
+      val agent = "Agent 47"
+      val callbackUrl = "http://callback.url"
+      val messageId = UUID.randomUUID().toString
+      val result = Template("NGC_003", Map("title" -> title, "firstName" -> firstName, "lastName" -> lastName, "agent" -> agent, "callbackUrl" -> callbackUrl, "messageId" -> messageId)).complete()
 
-      result shouldBe Some("Goodbye!")
+      result.notification.contains(title) shouldBe true
+      result.notification.contains(firstName) shouldBe true
+      result.notification.contains(lastName) shouldBe true
+      result.message.isDefined shouldBe true
+      result.message.get.subject shouldBe "You need to authorise your agent"
+      result.message.get.body.contains(agent) shouldBe true
+      result.message.get.callbackUrl shouldBe callbackUrl
+      result.message.get.messageId shouldBe messageId
     }
 
-    "return a completed template given a valid template name and multiple parameters" in {
-      val result = Template("more", "Eat", "pies").complete()
-
-      result shouldBe Some("Eat more pies")
+    "throw a BadRequestException given a template without required parameters" in {
+      val templateId = "NGC_002"
+      intercept[BadRequestException] {
+        Template(templateId).complete()
+      }.message.contains(s"Missing parameter for template $templateId") shouldBe true
     }
 
-    "return a completed template given too many parameters" in {
-      val result = Template("bye", "cruel world").complete()
-
-      result shouldBe Some("Goodbye!")
-    }
-
-    "return None given an invalid template name" in {
-      val result = Template("missing").complete()
-
-      result shouldBe None
+    "throw a BadRequestException given an unsupported template id" in {
+      val templateId = "NGC_invalid_template_id"
+      intercept[BadRequestException] {
+        Template(templateId).complete()
+      }.message shouldBe s"Template $templateId not found"
     }
   }
 }
+

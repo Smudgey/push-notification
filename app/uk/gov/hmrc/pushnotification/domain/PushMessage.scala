@@ -18,6 +18,8 @@ package uk.gov.hmrc.pushnotification.domain
 
 import java.util.UUID
 
+import play.api.libs.functional.syntax._
+import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.math.BigDecimal
@@ -87,7 +89,6 @@ object PushMessage {
         "id" -> message.messageId,
         "subject" -> message.subject,
         "body" -> message.body)
-
       if (message.responses.isEmpty) {
         core
       } else {
