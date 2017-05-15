@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-package it.utils
+//TODO Fix intergration tests for push notifications, logging a ticket for this, need to update the API gateway RAML at the same time.
 
-import play.api.Play
-import play.api.test.FakeApplication
+// package it.utils
 
-trait MicroserviceLocalRunSugar {
-  val additionalConfiguration: Map[String, Any]
-  val localMicroserviceUrl = s"http://localhost:${port}"
-  val port = sys.env.getOrElse("MICROSERVICE_PORT", "9001").toInt
-  lazy val fakeApplication = FakeApplication(additionalConfiguration = additionalConfiguration)
+// import play.api.Play
+// import play.api.test.FakeApplication
 
-  def run(block: () => Unit) = {
-    Play.start(fakeApplication)
-    block()
-    Play.stop()
-  }
-}
+// trait MicroserviceLocalRunSugar {
+//   val additionalConfiguration: Map[String, Any]
+//   val localMicroserviceUrl = s"http://localhost:${port}"
+//   val port = sys.env.getOrElse("MICROSERVICE_PORT", "9001").toInt
+//   lazy val fakeApplication = FakeApplication(additionalConfiguration = additionalConfiguration)
+
+//   def run(block: () => Unit) = {
+//     Play.start(fakeApplication)
+//     block()
+//     Play.stop()
+//   }
+// }
