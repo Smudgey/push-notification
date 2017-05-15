@@ -14,34 +14,36 @@
  * limitations under the License.
  */
 
-package it.utils
+//TODO Fix intergration tests for push notifications, logging a ticket for this, need to update the API gateway RAML at the same time.
 
-import com.github.tomakehurst.wiremock.WireMockServer
-import com.github.tomakehurst.wiremock.client.WireMock
-import com.github.tomakehurst.wiremock.client.WireMock._
-import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
-import play.api.libs.json.Json
-import uk.gov.hmrc.api.domain.Registration
+// package it.utils
 
-trait WiremockServiceLocatorSugar {
-  lazy val wireMockUrl = s"http://$stubHost:$stubPort"
-  lazy val wireMockServer = new WireMockServer(wireMockConfig().port(stubPort))
-  val stubPort = sys.env.getOrElse("WIREMOCK_SERVICE_LOCATOR_PORT", "11112").toInt
-  val stubHost = "localhost"
+// import com.github.tomakehurst.wiremock.WireMockServer
+// import com.github.tomakehurst.wiremock.client.WireMock
+// import com.github.tomakehurst.wiremock.client.WireMock._
+// import com.github.tomakehurst.wiremock.core.WireMockConfiguration._
+// import play.api.libs.json.Json
+// import uk.gov.hmrc.api.domain.Registration
 
-  def regPayloadStringFor(serviceName: String, serviceUrl: String): String =
-    Json.toJson(Registration(serviceName, serviceUrl, Some(Map("third-party-api" -> "true")))).toString
+// trait WiremockServiceLocatorSugar {
+//   lazy val wireMockUrl = s"http://$stubHost:$stubPort"
+//   lazy val wireMockServer = new WireMockServer(wireMockConfig().port(stubPort))
+//   val stubPort = sys.env.getOrElse("WIREMOCK_SERVICE_LOCATOR_PORT", "11112").toInt
+//   val stubHost = "localhost"
 
-  def startMockServer() = {
-    wireMockServer.start()
-    WireMock.configureFor(stubHost, stubPort)
-  }
+//   def regPayloadStringFor(serviceName: String, serviceUrl: String): String =
+//     Json.toJson(Registration(serviceName, serviceUrl, Some(Map("third-party-api" -> "true")))).toString
 
-  def stopMockServer() = {
-    wireMockServer.stop()
-    // A cleaner solution to reset the mappings, but only works with wiremock "1.57" (at the moment version 1.48 is pulled)
-    //wireMockServer.resetMappings()
-  }
+//   def startMockServer() = {
+//     wireMockServer.start()
+//     WireMock.configureFor(stubHost, stubPort)
+//   }
 
-  def stubRegisterEndpoint(status: Int) = stubFor(post(urlMatching("/registration")).willReturn(aResponse().withStatus(status)))
-}
+//   def stopMockServer() = {
+//     wireMockServer.stop()
+//     // A cleaner solution to reset the mappings, but only works with wiremock "1.57" (at the moment version 1.48 is pulled)
+//     //wireMockServer.resetMappings()
+//   }
+
+//   def stubRegisterEndpoint(status: Int) = stubFor(post(urlMatching("/registration")).willReturn(aResponse().withStatus(status)))
+// }
