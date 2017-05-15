@@ -44,6 +44,7 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
 class PushMessageController @Inject()(service: PushMessageServiceApi, accessControl: AccountAccessControlWithHeaderCheck) extends PushMessageControllerApi {
   override implicit val ec: ExecutionContext = ExecutionContext.global
 
+  // TODO...Drop API gateway restrictions
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
     implicit authenticated =>
       implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
