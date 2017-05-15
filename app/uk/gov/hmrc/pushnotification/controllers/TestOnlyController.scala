@@ -18,25 +18,13 @@ package uk.gov.hmrc.pushnotification.controllers
 
 import javax.inject.{Singleton, Inject}
 
-import com.google.inject.ImplementedBy
 import play.api.libs.json.Json
-import play.api.mvc.{Action, BodyParsers}
+import play.api.mvc.Action
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
-import uk.gov.hmrc.pushnotification.repository.{PushNotificationMongoRepositoryTest, NotificationPersist, PushNotificationRepositoryApi, PushNotificationMongoRepository}
-import play.api.Logger
-import uk.gov.hmrc.play.http.{UnauthorizedException, HeaderCarrier}
+import uk.gov.hmrc.pushnotification.repository.{PushNotificationMongoRepositoryTest, NotificationPersist}
 import uk.gov.hmrc.play.microservice.controller.BaseController
-import uk.gov.hmrc.api.controllers._
-import uk.gov.hmrc.pushnotification.services.NotificationsServiceApi
 
-import scala.concurrent.{ExecutionContext, Future}
-
-
-
-
-//@ImplementedBy(classOf[TestOnlyController])
-//trait TestOnlyControllerI extends BaseController with ErrorHandling {
-//}
+import scala.concurrent.ExecutionContext
 
 @Singleton
 class TestOnlyController @Inject()(notificationRepository: PushNotificationMongoRepositoryTest) extends BaseController with ErrorHandling {
@@ -47,8 +35,6 @@ class TestOnlyController @Inject()(notificationRepository: PushNotificationMongo
   }
 
   def findByEndpoint(token:String, internalId:String) = Action.async {
-
-println(" FIND BY ENDPOINT " + token + " internalId " + internalId)
     implicit val oidFormat = ReactiveMongoFormats.objectIdFormats
     implicit val format = Json.format[NotificationPersist]
 
