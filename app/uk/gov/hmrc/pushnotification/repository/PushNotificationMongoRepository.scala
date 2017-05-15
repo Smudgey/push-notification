@@ -156,7 +156,6 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       BSONDocument("$setOnInsert" -> BSONDocument("notificationId" -> id))
     }
     val coreData = BSONDocument(
-      "$setOnInsert" -> BSONDocument("messageId" -> notification.messageId),
       "$setOnInsert" -> BSONDocument("os" -> notification.os),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
       "$setOnInsert" -> BSONDocument("attempts" -> 0),
@@ -180,4 +179,18 @@ trait PushNotificationRepositoryApi {
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 
   def getUnsentNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
+}
+
+@Singleton
+class PushNotificationMongoRepositoryTest @Inject() (mongo: DB, @Named("sendNotificationMaxRetryAttempts") maxAttempts: Int) extends PushNotificationMongoRepository(mongo, maxAttempts) {
+
+  def removeAllRecords(): Future[Unit] = {
+    removeAll().map(_ => ())
+  }
+
+  def findByEndpoint(endpoint: String, authId:String): Future[Option[NotificationPersist]] = {
+    collection.
+      find(BSONDocument("authId" -> authId) ++ BSONDocument("endpoint" -> endpoint))
+      .one[NotificationPersist](ReadPreference.primaryPreferred)
+  }
 }

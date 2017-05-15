@@ -11,3 +11,7 @@
 
 # Add all the application routes to the prod.routes file
 ->         /                          prod.Routes
+
+# Test only routes
+DELETE  /test-only/notification/dropmongo                   @uk.gov.hmrc.pushnotification.controllers.TestOnlyController.dropNotificationMongo()
+GET     /test-only/notification/find/:token/:internalId     @uk.gov.hmrc.pushnotification.controllers.TestOnlyController.findByEndpoint(token, internalId)
