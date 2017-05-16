@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//TODO Fix intergration tests for push notifications, logging a ticket for this, need to update the API gateway RAML at the same time.
+//TODO Fix integration tests for push notifications, logging a ticket for this, need to update the API gateway RAML at the same time.
 
 // package it.utils
 
