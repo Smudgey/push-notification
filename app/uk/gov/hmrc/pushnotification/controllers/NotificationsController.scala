@@ -49,7 +49,7 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
     implicit request =>
       implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
 
-      errorWrapper(service.getUnsentNotifications.map { (result: Option[Seq[Notification]]) =>
+      errorWrapper(service.getQueuedNotifications.map { (result: Option[Seq[Notification]]) =>
         result.map { notifications =>
           if (notifications.isEmpty) {
             NotFound(NoUnsentNotifications)
