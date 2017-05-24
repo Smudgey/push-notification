@@ -7,5 +7,6 @@ POST   /messages/:id/status     @uk.gov.hmrc.pushnotification.controllers.PushMe
 #GET    /callbacks/undelivered         @uk.gov.hmrc.pushnotification.controllers.CallbackController.getUndeliveredCallbacks
 #POST   /callbacks/status         @uk.gov.hmrc.pushnotification.controllers.CallbackController.updateCallbacks
 
-GET    /notifications/unsent    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getUnsentNotifications
-POST   /notifications/status    @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()
+GET    /notifications/unsent        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getQueuedNotifications
+GET    /notifications/timedout      @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getTimedOutNotifications
+POST   /notifications/status        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()
