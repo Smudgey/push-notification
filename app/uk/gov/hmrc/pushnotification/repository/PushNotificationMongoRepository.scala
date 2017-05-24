@@ -100,9 +100,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       cursor[NotificationPersist](ReadPreference.primaryPreferred).
       collect[Seq]()
 
-  override def getUnsentNotifications(maxBatchSize: Int): Future[Seq[NotificationPersist]] = {
+  override def getQueuedNotifications(maxBatchSize: Int): Future[Seq[NotificationPersist]] = {
 
-    def getUnsentNotificationBatch = {
+    def queuedNotifications = {
       collection.find(BSONDocument(
         "$and" -> BSONArray(
           BSONDocument("status" -> queued),
@@ -113,6 +113,27 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
         collect[List](maxBatchSize)
     }
 
+    processBatch(queuedNotifications)
+  }
+
+  override def getTimedOutNotifications(timeoutMilliseconds: Long, maxBatchSize: Int): Future[Seq[NotificationPersist]] = {
+
+    def timedOutNotifications = {
+      collection.find(BSONDocument(
+        "$and" -> BSONArray(
+          BSONDocument("status" -> sent),
+          BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts)),
+          BSONDocument("updated" -> BSONDocument("$lt" -> BSONDateTime(DateTimeUtils.now.getMillis - timeoutMilliseconds)))
+        )
+      )).
+        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        collect[List](maxBatchSize)
+    }
+
+    processBatch(timedOutNotifications)
+  }
+
+  def processBatch(batch: Future[List[NotificationPersist]]) : Future[Seq[NotificationPersist]] = {
     def setSent(batch: List[NotificationPersist]) = {
       collection.update(
         BSONDocument("_id" -> BSONDocument("$in" -> batch.foldLeft(BSONArray())((a, p) => a.add(p.id)))),
@@ -141,9 +162,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     }
 
     for (
-      batch <- getUnsentNotificationBatch;
-      updateResult <- setSent(batch);
-      unsentNotifications <- getBatchOrFailed(batch, updateResult)
+      notifications <- batch;
+      updateResult <- setSent(notifications);
+      unsentNotifications <- getBatchOrFailed(notifications, updateResult)
     ) yield unsentNotifications
   }
 
@@ -178,7 +199,9 @@ trait PushNotificationRepositoryApi {
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 
-  def getUnsentNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
+  def getQueuedNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
+
+  def getTimedOutNotifications(timeoutMilliseconds: Long, maxRows: Int): Future[Seq[NotificationPersist]]
 }
 
 @Singleton

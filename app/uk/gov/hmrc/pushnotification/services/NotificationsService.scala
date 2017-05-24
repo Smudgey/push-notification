@@ -49,7 +49,7 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
 
   override def getUnsentNotifications: Future[Option[Seq[Notification]]] = {
     getUnsentLockKeeper.tryLock {
-      notificationRepository.getUnsentNotifications(maxBatchSize).map(
+      notificationRepository.getQueuedNotifications(maxBatchSize).map(
         _.map(np =>
           Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
       ).recover {

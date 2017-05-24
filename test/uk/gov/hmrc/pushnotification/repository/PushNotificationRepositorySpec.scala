@@ -208,7 +208,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       queued.size shouldBe 2
 
-      val result: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
+      val result: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
 
       result.size shouldBe 2
 
@@ -220,12 +220,24 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
       val delivered: Seq[NotificationPersist] = await(repository.findByStatus(Delivered))
-      val stillQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
+      val stillQueued: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
 
       sent.size shouldBe 2
       delivered.size shouldBe 1
       delivered.head.attempts shouldBe 0
       stillQueued.size shouldBe 0
+    }
+
+    "find notifications that are still in the Sent state after a timeout period has expired" in new Setup {
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs, status = Sent)))
+
+      val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
+
+      sent.size shouldBe 1
+
+      val result: Seq[NotificationPersist] = await(repository.getTimedOutNotifications(1, 100))
+
+      result.size shouldBe 1
     }
 
     "not return notifications that have exceeded the maximum number of attempts" in new Setup {
@@ -239,7 +251,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       initiallyQueued.size shouldBe 2
 
       for (_ <- 1 to maxRetryAttempts + 1) {
-        val someQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
+        val someQueued: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
 
         someQueued.forall { n =>
           await(repository.update(n.notificationId, Queued)) match {
@@ -249,7 +261,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
         } shouldBe true
       }
 
-      val finallyQueued: Seq[NotificationPersist] = await(repository.getUnsentNotifications(100))
+      val finallyQueued: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
 
       finallyQueued.size shouldBe 0
     }
@@ -265,7 +277,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       allSaved.size should be > someLimit
 
-      val result = await(repository.getUnsentNotifications(someLimit))
+      val result = await(repository.getQueuedNotifications(someLimit))
 
       result.size shouldBe someLimit
     }

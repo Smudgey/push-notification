@@ -61,13 +61,13 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getUnsentNotifications(any[Int]())
+    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
     doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(someNotificationId), any[NotificationStatus]())
     doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(otherNotificationId), any[NotificationStatus]())
   }
 
   private trait Failed extends LockOK {
-    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getUnsentNotifications(any[Int]())
+    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
     doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[String](), any[NotificationStatus]())
   }
 
