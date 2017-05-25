@@ -24,7 +24,7 @@ import play.api.Logger
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answer, Answered, PermanentlyFailed, Timedout, Timeout}
-import uk.gov.hmrc.pushnotification.domain.{Callback, CallbackBatch, PushMessageStatus, Response}
+import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -35,7 +35,7 @@ trait CallbackServiceApi {
 
   def getUndeliveredCallbacks: Future[Option[CallbackBatch]]
 
-  def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]]
+  def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Seq[Boolean]]
 }
 
 @Singleton
@@ -64,11 +64,13 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     }
   }
 
-  override def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]] = {
-      Future.sequence(updates.map(s => repository.findLatest(s._1).flatMap {
+  override def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Seq[Boolean]] = {
+
+    Future.sequence(batchUpdate.batch.map { (s: CallbackResult) =>
+      repository.findByStatus(s.messageId, s.status).flatMap {
         case Some(cb) =>
-          val status = if (s._2) {
-            completionMap.getOrElse(cb.status, PermanentlyFailed)
+          val status = if (s.success) {
+            completionMap.getOrElse(s.status, PermanentlyFailed)
           } else {
             if (cb.attempt < maxAttempts) {
               cb.status
@@ -86,7 +88,7 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
               throw new ServiceUnavailableException(s"failed to save callback: ${e.getMessage}")
           }
         case None => Future(false)
-      }).toSeq
-      )
+      }
+    })
   }
 }

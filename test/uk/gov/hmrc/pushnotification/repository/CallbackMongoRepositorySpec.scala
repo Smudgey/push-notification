@@ -151,6 +151,27 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       result.isDefined shouldBe false
     }
 
+    "find a callback with a specific messageId and status" in new Setup {
+      val saved: Seq[Either[String, Boolean]] =
+        Seq(
+          await(repository.save(someMessageId, someUrl, Acknowledged, None)),
+          await(repository.save(someMessageId, someUrl, Answered, None)),
+          await(repository.save(otherMessageId, otherUrl, PermanentlyFailed, someAnswer)),
+          await(repository.save(otherMessageId, otherUrl, Answered, None, attempt = 123)),
+          await(repository.save(otherMessageId, otherUrl, Acknowledged, None))
+        )
+
+      saved.count(_.isRight) shouldBe 5
+
+      val found: Option[PushMessageCallbackPersist] = await(repository.findByStatus(otherMessageId, Answered))
+
+      val actual: PushMessageCallbackPersist = found.getOrElse(fail("should have been found"))
+
+      actual.messageId shouldBe otherMessageId
+      actual.attempt shouldBe 123
+      actual.status shouldBe Answered
+    }
+
     "find undelivered callbacks and increase the number of attempts" in new Setup {
       val initialState: Seq[Either[String, Boolean]] =
         Seq(
@@ -183,8 +204,8 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
     "return only max-limit number of callbacks when there are more than max-limit unprocessed callbacks" in new Setup {
       val someLimit = 10
 
-      await{
-        Future.sequence((1 to someLimit + 1).map(i => repository.save(s"msg-id-$i", someUrl, Acknowledge, None, 0)))
+      await {
+        Future.sequence((1 to someLimit + 1).map(i => repository.save(s"msg-id-$i", someUrl, Acknowledge, None)))
       }
 
       val allSaved: List[PushMessageCallbackPersist] = await(repository.findAll())

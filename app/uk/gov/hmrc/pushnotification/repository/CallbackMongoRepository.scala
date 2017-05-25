@@ -87,6 +87,15 @@ class CallbackMongoRepository @Inject()(mongo: DB)
       sort(Json.obj("status" -> -1)).
       one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
 
+  override def findByStatus(messageId: String, status: PushMessageStatus): Future[Option[PushMessageCallbackPersist]] =
+    collection.
+      find(
+        BSONDocument("$and" -> BSONArray(
+          BSONDocument("messageId" -> messageId),
+          BSONDocument("status" -> PushMessageStatus.ordinal(status))
+        ))).
+      one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
+
   override def findUndelivered(maxBatchSize: Int): Future[Seq[PushMessageCallbackPersist]] = {
     def undeliveredCallbacks = {
       collection.find(
@@ -107,7 +116,7 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     processBatch(undeliveredCallbacks)
   }
 
-  def processBatch(batch: Future[List[PushMessageCallbackPersist]]) : Future[Seq[PushMessageCallbackPersist]] = {
+  def processBatch(batch: Future[List[PushMessageCallbackPersist]]): Future[Seq[PushMessageCallbackPersist]] = {
     def setProcessed(batch: List[PushMessageCallbackPersist]) = {
       collection.update(
         BSONDocument("_id" -> BSONDocument("$in" -> batch.foldLeft(BSONArray())((a, p) => a.add(p.id)))),
@@ -182,6 +191,8 @@ trait CallbackRepositoryApi {
   def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]]
 
   def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
+
+  def findByStatus(messageId: String, status: PushMessageStatus): Future[Option[PushMessageCallbackPersist]]
 
   def findUndelivered(maxRows: Int): Future[Seq[PushMessageCallbackPersist]]
 }

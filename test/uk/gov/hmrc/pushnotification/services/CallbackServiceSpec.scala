@@ -28,7 +28,7 @@ import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer, PermanentlyFailed}
-import uk.gov.hmrc.pushnotification.domain.{Callback, CallbackBatch, PushMessageStatus}
+import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.Future.{failed, successful}
@@ -54,8 +54,10 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
     val someCallback = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someStatus, someAnswer, someAttempt)
     val otherCallback = PushMessageCallbackPersist(BSONObjectID.generate, otherMessageId, otherUrl, otherStatus, otherAnswer, otherAttempt)
 
-    val updates = Map(someMessageId -> true, otherMessageId -> false)
-
+    val updates = CallbackResultBatch(Seq(
+      CallbackResult(someMessageId, someStatus, success = true),
+      CallbackResult(otherMessageId, otherStatus, success = false)
+    ))
     val service = new CallbackService(mockRepository, maxAttempts, lockRepository)
   }
 
@@ -67,18 +69,18 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
   private trait Success extends LockOK {
     doReturn(successful(Seq(someCallback, otherCallback)), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findLatest(ArgumentMatchers.eq(someMessageId))
-    doReturn(successful(Some(otherCallback)), Nil: _*).when(mockRepository).findLatest(ArgumentMatchers.eq(otherMessageId))
+    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(someMessageId), ArgumentMatchers.any[PushMessageStatus]())
+    doReturn(successful(Some(otherCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(otherMessageId), ArgumentMatchers.any[PushMessageStatus]())
 
     doReturn(successful(Right(true)), Nil: _*).when(mockRepository).save(ArgumentMatchers.eq(someMessageId), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
     doReturn(successful(Left("Something is wrong")), Nil: _*).when(mockRepository).save(ArgumentMatchers.eq(otherMessageId), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
   private trait Final extends LockOK {
-    override val updates = Map(someMessageId -> false)
+    override val updates = CallbackResultBatch(Seq(CallbackResult(someMessageId, someStatus, success = false)))
     override val someCallback = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someStatus, someAnswer, maxAttempts)
 
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findLatest(ArgumentMatchers.eq(someMessageId))
+    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(someMessageId), ArgumentMatchers.any[PushMessageStatus]())
 
     doReturn(successful(Right(true)), Nil: _*).when(mockRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
@@ -87,7 +89,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
 
     doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findLatest(any[String]())
+    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.any[String](), ArgumentMatchers.any[PushMessageStatus]())
     doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
   }
 
