@@ -32,30 +32,53 @@ import scala.concurrent.Future
 @ImplementedBy(classOf[NotificationsService])
 trait NotificationsServiceApi {
 
-  def getUnsentNotifications: Future[Option[Seq[Notification]]]
+  def getQueuedNotifications: Future[Option[Seq[Notification]]]
+
+  def getTimedOutNotifications: Future[Option[Seq[Notification]]]
 
   def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]]
 }
 
 @Singleton
-class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository, @Named("unsentNotificationsMaxBatchSize") maxBatchSize: Int) extends NotificationsServiceApi {
-  val getUnsentLockKeeper = new LockKeeper {
+class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository, @Named("unsentNotificationsMaxBatchSize") maxBatchSize: Int, @Named("unsentNotificationsTimeout") timeoutMillis: Long) extends NotificationsServiceApi {
+  val getQueuedLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
 
-    override def lockId: String = "getUnsentNotifications"
+    override def lockId: String = "getQueuedNotifications"
 
     override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
   }
 
-  override def getUnsentNotifications: Future[Option[Seq[Notification]]] = {
-    getUnsentLockKeeper.tryLock {
-      notificationRepository.getUnsentNotifications(maxBatchSize).map(
+  val getTimedOutLockKeeper = new LockKeeper {
+    override def repo: LockRepository = lockRepository
+
+    override def lockId: String = "getTimedOutNotifications"
+
+    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
+  }
+
+  override def getQueuedNotifications: Future[Option[Seq[Notification]]] = {
+    getQueuedLockKeeper.tryLock {
+      notificationRepository.getQueuedNotifications(maxBatchSize).map(
         _.map(np =>
           Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
       ).recover {
         case e: Exception =>
-          Logger.error(s"Unable to retrieve unsent notifications: ${e.getMessage}")
-          throw new ServiceUnavailableException(s"Unable to retrieve unsent notifications")
+          Logger.error(s"Unable to retrieve queued notifications: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to retrieve queued notifications")
+      }
+    }
+  }
+
+  override def getTimedOutNotifications: Future[Option[Seq[Notification]]] = {
+    getTimedOutLockKeeper.tryLock {
+      notificationRepository.getTimedOutNotifications(timeoutMillis, maxBatchSize).map(
+        _.map(np =>
+          Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
+      ).recover {
+        case e: Exception =>
+          Logger.error(s"Unable to retrieve timed-out notifications: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to retrieve timed-out notifications")
       }
     }
   }

@@ -38,7 +38,7 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     val notificationRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
     val lockRepository: LockRepository = mock[LockRepository]
 
-    val service = new NotificationsService(notificationRepository, lockRepository, 100)
+    val service = new NotificationsService(notificationRepository, lockRepository, 100, 60000L)
 
     val someMessageId = "msg-id-abcd-1234"
     val someAuthId = "bob-id"
@@ -61,19 +61,21 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getUnsentNotifications(any[Int]())
+    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
+    doReturn(successful(Seq(otherPersisted, somePersisted)), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
     doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(someNotificationId), any[NotificationStatus]())
     doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(otherNotificationId), any[NotificationStatus]())
   }
 
   private trait Failed extends LockOK {
-    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getUnsentNotifications(any[Int]())
+    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
+    doReturn(failed(new Exception("SPLAT!")), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
     doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[String](), any[NotificationStatus]())
   }
 
-  "NotificationsService getUnsentNotifications" should {
-    "return a list of messages when unsent notifications are available" in new Success {
-      val result: Option[Seq[Notification]] = await(service.getUnsentNotifications)
+  "NotificationsService getQueuedNotifications" should {
+    "return a list of messages when queued notifications are available" in new Success {
+      val result: Option[Seq[Notification]] = await(service.getQueuedNotifications)
 
       val actualNotifications: Seq[Notification] = result.getOrElse(fail("should have found notifications"))
 
@@ -84,10 +86,30 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
 
     "throw a service unavailable exception given an issue with the repository" in new Failed {
       val result = intercept[ServiceUnavailableException]{
-        await(service.getUnsentNotifications)
+        await(service.getQueuedNotifications)
       }
 
-      result.getMessage shouldBe "Unable to retrieve unsent notifications"
+      result.getMessage shouldBe "Unable to retrieve queued notifications"
+    }
+  }
+
+  "NotificationsService getTimedOutNotifications" should {
+    "return a list of messages when timed out notifications are available" in new Success {
+      val result: Option[Seq[Notification]] = await(service.getTimedOutNotifications)
+
+      val actualNotifications: Seq[Notification] = result.getOrElse(fail("should have found notifications"))
+
+      actualNotifications.size shouldBe 2
+      actualNotifications.head.endpoint shouldBe otherEndpoint
+      actualNotifications(1).endpoint shouldBe someEndpoint
+    }
+
+    "throw a service unavailable exception given an issue with the repository" in new Failed {
+      val result = intercept[ServiceUnavailableException]{
+        await(service.getTimedOutNotifications)
+      }
+
+      result.getMessage shouldBe "Unable to retrieve timed-out notifications"
     }
   }
 

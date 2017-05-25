@@ -32,11 +32,13 @@ import scala.concurrent.{ExecutionContext, Future}
 
 @ImplementedBy(classOf[NotificationsController])
 trait NotificationsControllerApi extends BaseController with ErrorHandling {
-  val NoUnsentNotifications: JsValue = Json.parse("""{"code":"NOT_FOUND","message":"No unsent notifications"}""")
+  val NoNotifications: JsValue = Json.parse("""{"code":"NOT_FOUND","message":"No notifications found"}""")
 
   val LockFailed: JsValue = Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
 
-  def getUnsentNotifications: Action[AnyContent]
+  def getQueuedNotifications: Action[AnyContent]
+
+  def getTimedOutNotifications: Action[AnyContent]
 
   def updateNotifications: Action[JsValue]
 }
@@ -45,22 +47,9 @@ trait NotificationsControllerApi extends BaseController with ErrorHandling {
 class NotificationsController @Inject()(service: NotificationsServiceApi) extends NotificationsControllerApi {
   override implicit val ec: ExecutionContext = ExecutionContext.global
 
-  override def getUnsentNotifications: Action[AnyContent] = Action.async {
-    implicit request =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+  override def getQueuedNotifications: Action[AnyContent] = findNotifications(service.getQueuedNotifications)
 
-      errorWrapper(service.getUnsentNotifications.map { (result: Option[Seq[Notification]]) =>
-        result.map { notifications =>
-          if (notifications.isEmpty) {
-            NotFound(NoUnsentNotifications)
-          }
-          else {
-            Ok(Json.toJson(notifications))
-          }
-        }.getOrElse(ServiceUnavailable(LockFailed))
-      }
-      )
-  }
+  override def getTimedOutNotifications: Action[AnyContent] = findNotifications(service.getTimedOutNotifications)
 
   override def updateNotifications: Action[JsValue] = Action.async(BodyParsers.parse.json) {
     implicit request =>
@@ -80,5 +69,22 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
             }
           })
         })
+  }
+
+  private def findNotifications(f: => Future[Option[Seq[Notification]]]) = Action.async {
+    implicit request =>
+      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+
+      errorWrapper(f.map { (result: Option[Seq[Notification]]) =>
+        result.map { notifications =>
+          if (notifications.isEmpty) {
+            NotFound(NoNotifications)
+          }
+          else {
+            Ok(Json.toJson(notifications))
+          }
+        }.getOrElse(ServiceUnavailable(LockFailed))
+      }
+      )
   }
 }
