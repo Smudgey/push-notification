@@ -24,8 +24,8 @@ import play.api.Logger
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answer, Answered, PermanentlyFailed, Timedout, Timeout}
-import uk.gov.hmrc.pushnotification.domain.{Callback, PushMessageStatus, Response}
-import uk.gov.hmrc.pushnotification.repository.CallbackRepositoryApi
+import uk.gov.hmrc.pushnotification.domain.{Callback, CallbackBatch, PushMessageStatus, Response}
+import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -33,7 +33,7 @@ import scala.concurrent.Future
 @ImplementedBy(classOf[CallbackService])
 trait CallbackServiceApi {
 
-  def getUndeliveredCallbacks: Future[Option[Seq[Callback]]]
+  def getUndeliveredCallbacks: Future[Option[CallbackBatch]]
 
   def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]]
 }
@@ -50,12 +50,12 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
   }
 
-  override def getUndeliveredCallbacks: Future[Option[Seq[Callback]]] = {
+  override def getUndeliveredCallbacks: Future[Option[CallbackBatch]] = {
     getDeliveredLockKeeper.tryLock {
-      repository.findUndelivered(100).map(
-        _.map(cb =>
+      repository.findUndelivered(100).map((batch: Seq[PushMessageCallbackPersist]) =>
+        CallbackBatch(batch.map(cb =>
           Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
-        )
+        ))
       ).recover {
         case e: Exception =>
           Logger.error(s"Unable to retrieve undelivered callbacks: ${e.getMessage}")

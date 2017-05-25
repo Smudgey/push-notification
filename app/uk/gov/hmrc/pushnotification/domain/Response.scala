@@ -29,3 +29,9 @@ case class Callback(callbackUrl: String, status: PushMessageStatus, response: Re
 object Callback {
   implicit val formats = Json.format[Callback]
 }
+
+case class CallbackBatch(batch: Seq[Callback])
+
+object CallbackBatch {
+  implicit val formats = Json.format[CallbackBatch]
+}

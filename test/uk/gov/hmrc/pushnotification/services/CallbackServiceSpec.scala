@@ -28,7 +28,7 @@ import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer, PermanentlyFailed}
-import uk.gov.hmrc.pushnotification.domain.{Callback, PushMessageStatus}
+import uk.gov.hmrc.pushnotification.domain.{Callback, CallbackBatch, PushMessageStatus}
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.Future.{failed, successful}
@@ -93,9 +93,9 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
 
   "CallbackService getUndeliveredCallbacks" should {
     "return a list of callbacks when undelivered callbacks are available" in new Success {
-      val result: Option[Seq[Callback]] = await(service.getUndeliveredCallbacks)
+      val result: Option[CallbackBatch] = await(service.getUndeliveredCallbacks)
 
-      val actualCallbacks = result.getOrElse(fail("should have some callbacks"))
+      val actualCallbacks = result.getOrElse(fail("should have some callbacks")).batch
 
       actualCallbacks.size shouldBe 2
 
