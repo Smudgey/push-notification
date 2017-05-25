@@ -93,12 +93,10 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "find notifications with a given status" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs, status = Delivered))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = someEndpoint, content = otherContent, os = someOs))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = otherEndpoint, content = otherContent, os = someOs))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs, status = Delivered)))
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = someEndpoint, content = otherContent, os = someOs)))
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = otherEndpoint, content = otherContent, os = someOs)))
 
       val result: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
@@ -124,11 +122,9 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "update existing notifications given a notification with an existing notification id" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs)))
 
       val saved: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
@@ -153,11 +149,9 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "update the status of notifications" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs)))
 
       val saved: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
@@ -181,9 +175,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "not update the status of notifications given an unknown notification id" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
 
       val unknownId = "does-not-exist-notification-id"
 
@@ -198,11 +190,9 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "find queued notifications, set these to 'sent' and increment attempts by 1" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs))
-        repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs, status = Delivered))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
+      await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs, status = Delivered)))
 
       val queued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
@@ -241,10 +231,8 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     }
 
     "not return notifications that have exceeded the maximum number of attempts" in new Setup {
-      await {
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))
-        repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs))
-      }
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
 
       val initiallyQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
 
@@ -269,9 +257,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     "return only max-limit number of notifications when there are more than max-limit queued notifications" in new Setup {
       val someLimit = 10
 
-      await{
-        Future.sequence((1 to someLimit + 1).map(i => repository.save(s"authId-$i",Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs))))
-      }
+      await(Future.sequence((1 to someLimit + 1).map(i => repository.save(s"authId-$i",Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))))
 
       val allSaved: List[NotificationPersist] = await(repository.findAll())
 
