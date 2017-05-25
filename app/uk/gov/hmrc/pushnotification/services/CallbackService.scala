@@ -35,7 +35,7 @@ trait CallbackServiceApi {
 
   def getUndeliveredCallbacks: Future[Option[Seq[Callback]]]
 
-  def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]]
+  def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]]
 }
 
 @Singleton
@@ -50,17 +50,9 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
   }
 
-  val getUpdateCallbacksLockKeeper = new LockKeeper {
-    override def repo: LockRepository = lockRepository
-
-    override def lockId: String = "updateCallbacks"
-
-    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
-  }
-
   override def getUndeliveredCallbacks: Future[Option[Seq[Callback]]] = {
     getDeliveredLockKeeper.tryLock {
-      repository.findUndelivered.map(
+      repository.findUndelivered(100).map(
         _.map(cb =>
           Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
         )
@@ -72,8 +64,7 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     }
   }
 
-  override def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]] = {
-    getUpdateCallbacksLockKeeper.tryLock {
+  override def updateCallbacks(updates: Map[String, Boolean]): Future[Seq[Boolean]] = {
       Future.sequence(updates.map(s => repository.findLatest(s._1).flatMap {
         case Some(cb) =>
           val status = if (s._2) {
@@ -97,6 +88,5 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
         case None => Future(false)
       }).toSeq
       )
-    }
   }
 }

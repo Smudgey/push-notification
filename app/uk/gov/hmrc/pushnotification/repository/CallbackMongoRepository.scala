@@ -26,6 +26,7 @@ import reactivemongo.api.commands.UpdateWriteResult
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus
@@ -86,23 +87,58 @@ class CallbackMongoRepository @Inject()(mongo: DB)
       sort(Json.obj("status" -> -1)).
       one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
 
-  override def findUndelivered: Future[Seq[PushMessageCallbackPersist]] = {
-    val processed: BSONDateTime = BSONDateTime(DateTimeUtils.now.getMillis)
-
-    val update: Future[UpdateWriteResult] = collection.update(
-      undelivered(),
-      setProcessed(processed),
-      upsert = false,
-      multi = true
-    )
-
-    update.flatMap { _ =>
-      collection.
-        find(BSONDocument("processed" -> processed)).
-        sort(Json.obj("processed" -> JsNumber(-1))).
-        cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
-        collect[Seq]()
+  override def findUndelivered(maxBatchSize: Int): Future[Seq[PushMessageCallbackPersist]] = {
+    def undeliveredCallbacks = {
+      collection.find(
+        BSONDocument(
+          "$and" -> BSONArray(
+            BSONDocument("status" ->
+              BSONDocument("$in" -> BSONArray(
+                PushMessageStatus.ordinal(Acknowledge),
+                PushMessageStatus.ordinal(Answer),
+                PushMessageStatus.ordinal(Timeout)))),
+            BSONDocument("processed" -> BSONDocument("$exists" -> false))
+          )
+        )).
+        sort(Json.obj("created" -> JsNumber(-1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
+        collect[List](maxBatchSize)
     }
+
+    processBatch(undeliveredCallbacks)
+  }
+
+  def processBatch(batch: Future[List[PushMessageCallbackPersist]]) : Future[Seq[PushMessageCallbackPersist]] = {
+    def setProcessed(batch: List[PushMessageCallbackPersist]) = {
+      collection.update(
+        BSONDocument("_id" -> BSONDocument("$in" -> batch.foldLeft(BSONArray())((a, p) => a.add(p.id)))),
+        BSONDocument(
+          "$set" -> BSONDocument(
+            "processed" -> BSONDateTime(DateTimeUtils.now.getMillis)
+          ),
+          "$inc" -> BSONDocument(
+            "attempt" -> 1
+          )
+        ),
+        upsert = false,
+        multi = true
+      )
+    }
+
+    def getBatchOrFailed(batch: List[PushMessageCallbackPersist], updateWriteResult: UpdateWriteResult) = {
+      if (updateWriteResult.ok) {
+        Future.successful(batch.map(n => n.copy(attempt = n.attempt + 1)))
+      } else {
+        Future.failed(new ReactiveMongoException {
+          override def message: String = "failed to fetch callbacks"
+        })
+      }
+    }
+
+    for (
+      callbacks <- batch;
+      updateResult <- setProcessed(callbacks);
+      unsentNotifications <- getBatchOrFailed(callbacks, updateResult)
+    ) yield unsentNotifications
   }
 
   def findCallbackByMessageIdAndStatusAndAttempt(messageId: String, status: PushMessageStatus, attempt: Int): BSONDocument =
@@ -138,16 +174,6 @@ class CallbackMongoRepository @Inject()(mongo: DB)
         BSONDocument("processed" -> BSONDocument("$exists" -> false))
       )
     )
-
-  def setProcessed(processed: BSONDateTime): BSONDocument =
-    BSONDocument(
-      "$set" -> BSONDocument(
-        "processed" -> processed
-      ),
-      "$inc" -> BSONDocument(
-        "attempt" -> 1
-      )
-    )
 }
 
 
@@ -157,5 +183,5 @@ trait CallbackRepositoryApi {
 
   def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
 
-  def findUndelivered: Future[Seq[PushMessageCallbackPersist]]
+  def findUndelivered(maxRows: Int): Future[Seq[PushMessageCallbackPersist]]
 }

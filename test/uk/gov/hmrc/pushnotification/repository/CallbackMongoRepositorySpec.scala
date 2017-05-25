@@ -25,12 +25,14 @@ import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with BeforeAndAfterEach with ScalaFutures with LoneElement with Eventually {
 
   val repository: CallbackMongoRepository = new CallbackMongoRepository(mongo())
 
   trait Setup {
+    val maxRows = 10
     val someMessageId = "msg-some-id"
     val otherMessageId = "msg-other-id"
     val someUrl = "https//example.com/foo"
@@ -163,7 +165,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       initialState.count(_.isRight) shouldBe 7
 
-      val first: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered)
+      val first: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered(maxRows))
 
       first.size shouldBe 3
 
@@ -173,11 +175,25 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       first.count(_.attempt == 4) shouldBe 1
       first.count(_.attempt == 0) shouldBe 0
 
-      val second: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered)
+      val second: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered(maxRows))
 
       second.size shouldBe 0
     }
 
-    // TODO: "find undelivered should return only max-limit callbacks when there are more than max-limit undelivered callbacks"
+    "return only max-limit number of callbacks when there are more than max-limit unprocessed callbacks" in new Setup {
+      val someLimit = 10
+
+      await{
+        Future.sequence((1 to someLimit + 1).map(i => repository.save(s"msg-id-$i", someUrl, Acknowledge, None, 0)))
+      }
+
+      val allSaved: List[PushMessageCallbackPersist] = await(repository.findAll())
+
+      allSaved.size should be > someLimit
+
+      val result = await(repository.findUndelivered(someLimit))
+
+      result.size shouldBe someLimit
+    }
   }
 }

@@ -65,7 +65,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(someCallback, otherCallback)), Nil: _*).when(mockRepository).findUndelivered
+    doReturn(successful(Seq(someCallback, otherCallback)), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
     doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findLatest(ArgumentMatchers.eq(someMessageId))
     doReturn(successful(Some(otherCallback)), Nil: _*).when(mockRepository).findLatest(ArgumentMatchers.eq(otherMessageId))
@@ -85,7 +85,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
 
   private trait Failed extends LockOK {
 
-    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).findUndelivered
+    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
     doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findLatest(any[String]())
     doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
@@ -121,9 +121,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
 
     "CallbackService updateCallbacks" should {
       "save the callback details in the repository" in new Success {
-        val result: Option[Seq[Boolean]] = await(service.updateCallbacks(updates))
-
-        val actualUpdates = result.getOrElse(fail("should have done some updates"))
+        val actualUpdates: Seq[Boolean] = await(service.updateCallbacks(updates))
 
         actualUpdates.size shouldBe 2
 
@@ -138,7 +136,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
         val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
         val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-        val result: Option[Seq[Boolean]] = await(service.updateCallbacks(updates))
+        val result: Seq[Boolean] = await(service.updateCallbacks(updates))
 
         verify(mockRepository).save(messageIdCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
@@ -148,7 +146,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
         answerCaptor.getValue shouldBe someAnswer
         attemptCaptor.getValue shouldBe maxAttempts
 
-        result.get.head shouldBe true
+        result.head shouldBe true
       }
 
       "throw a service unavailable exception given repository problems" in new Failed {
