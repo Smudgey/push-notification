@@ -24,7 +24,7 @@ import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavail
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
-import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageRepositoryApi, PushNotificationRepositoryApi}
+import uk.gov.hmrc.pushnotification.repository._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -93,5 +93,15 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     }
   }
 
-  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = ???
+  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = {
+    getMessagesByAuthority(authId)
+  }
+
+  private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
+    messageRepository.findByAuthority(authId).map { messages =>
+      for {
+        pm <- messages
+      } yield (PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId))
+    }
+  }
 }

@@ -100,6 +100,13 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       }
     }).when(mockMessageRepository).save(matches(otherAuth.authInternalId), any[PushMessage]())
     doReturn(successful(Right(true)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+
+    doAnswer(new Answer[Future[Seq[PushMessage]]] {
+      override def answer(invocationOnMock: InvocationOnMock): Future[Seq[PushMessage]] = {
+        successful(Seq(somePushMessage))
+      }
+    }).when(mockMessageRepository).findByAuthority(matches(someAuth.authInternalId))
+
   }
 
   private trait Duplicate extends Setup {
@@ -252,10 +259,9 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService getCurrentMessages" should {
-    "will return unanswered messages for a given authId" in new Success {
-      pending
-
-      await(service.getCurrentMessages(someAuth.authInternalId)) shouldBe Seq(somePushMessage)
+    "will return all messages for a given authId" in new Success {
+      val result = await(service.getCurrentMessages(someAuth.authInternalId))
+      result shouldBe Seq(somePushMessage)
     }
   }
 
