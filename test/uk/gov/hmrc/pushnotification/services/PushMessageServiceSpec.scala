@@ -251,6 +251,14 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
   }
 
+  "PushMessageService getCurrentMessages" should {
+    "will return unanswered messages for a given authId" in new Success {
+      pending
+
+      await(service.getCurrentMessages(someAuth.authInternalId)) shouldBe Seq(somePushMessage)
+    }
+  }
+
     class GUIDMatcher extends Matcher[String] {
     def apply(maybeGuid: String): MatchResult = {
       val result = try {

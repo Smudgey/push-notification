@@ -36,6 +36,8 @@ trait PushMessageServiceApi extends Auditor {
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
+
+  def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
 }
 
 @Singleton
@@ -90,4 +92,6 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
        }
     }
   }
+
+  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = ???
 }

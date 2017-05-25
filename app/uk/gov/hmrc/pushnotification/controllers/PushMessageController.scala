@@ -38,6 +38,8 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
 
   def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
+
+  def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
 }
 
 @Singleton
@@ -77,7 +79,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
               if (result) {
                 maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
               } else {
-                Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
+                Logger.info(s"Response for messageId=[${ response.messageId }] with status=[$status], answer=[${ response.answer.getOrElse("") }] was previously processed")
                 maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
               }
             })
@@ -88,4 +90,12 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         }
       )
   }
+
+  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+    implicit authenticated =>
+      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
+
+      ???
+  }
+
 }

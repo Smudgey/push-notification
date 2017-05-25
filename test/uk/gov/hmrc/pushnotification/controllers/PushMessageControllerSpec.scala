@@ -230,5 +230,11 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
     }
   }
+
+  "PushMessageController getCurrentMessages" should {
+    "return unanswered messages for a given authId" in {
+
+    }
+  }
 }
 
