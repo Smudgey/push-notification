@@ -18,8 +18,6 @@ package uk.gov.hmrc.pushnotification.domain
 
 import java.util.UUID
 
-import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.math.BigDecimal
@@ -73,11 +71,24 @@ object PushMessageStatus {
       }
   }
 
-  val writesToRepository: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
-    override def writes(status: PushMessageStatus): JsNumber = JsNumber(ordinal(status))
+  val writes: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
+    override def writes(status: PushMessageStatus): JsString = JsString(status.toString)
   }
 
-  implicit val formats = Format(PushMessageStatus.readsFromRepository, PushMessageStatus.writesToRepository)
+  val reads: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
+    override def reads(json: JsValue): JsResult[PushMessageStatus] =
+      json match {
+        case JsString(value: String) if value == Acknowledge.toString => JsSuccess(Acknowledge)
+        case JsString(value: String) if value == Acknowledged.toString => JsSuccess(Acknowledged)
+        case JsString(value: String) if value == Answer.toString => JsSuccess(Answer)
+        case JsString(value: String) if value == Answered.toString => JsSuccess(Answered)
+        case JsString(value: String) if value == Timeout.toString => JsSuccess(Timeout)
+        case JsString(value: String) if value == Timedout.toString => JsSuccess(Timedout)
+        case JsString(value: String) if value == PermanentlyFailed.toString => JsSuccess(PermanentlyFailed)
+        case _ => JsError(s"Failed to resolve $json")
+      }
+  }
+  implicit val formats = Format(PushMessageStatus.reads, PushMessageStatus.writes)
 }
 
 case class PushMessage(subject: String, body: String, callbackUrl: String, responses: Map[String, String] = Map.empty, messageId: String = UUID.randomUUID().toString)
