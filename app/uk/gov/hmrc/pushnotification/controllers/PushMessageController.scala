@@ -27,7 +27,7 @@ import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
-import uk.gov.hmrc.pushnotification.domain.{PushMessage, Response, Template}
+import uk.gov.hmrc.pushnotification.domain.{PushMessage, PushMessageResponse, Response, Template}
 import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -94,8 +94,11 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
   override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
     implicit authenticated =>
       implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
-
-      ???
+      journeyId match {
+        case Some(authId) =>
+          service.getCurrentMessages(authId).map(PushMessageResponse.apply).map(message => Ok(Json.toJson(message)))
+        case None => Future.successful(BadRequest)
+      }
   }
 
 }

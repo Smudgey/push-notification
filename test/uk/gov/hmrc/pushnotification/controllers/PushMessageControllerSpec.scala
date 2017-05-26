@@ -56,6 +56,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     val someMessageId = "msg-some-id"
     val otherMessageId = "msg-other-id"
+    val someJourneyId = "journey-id"
 
     val acceptHeader = "Accept" -> "application/vnd.hmrc.1.0+json"
     val template = Template("NGC_002", Map("fullName" -> "Inspector Gadget", "agent" -> "Agent 47"))
@@ -67,20 +68,24 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""))
     val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""))
 
+    val currentMessageRequest = fakeRequest(Json.parse(s"""{ "journeyId" : "$someJourneyId" }"""))
+
     def fakeRequest(body: JsValue) = FakeRequest(POST, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
 
-    val someMessage = Some(PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), someMessageId))
+    val someMessage = PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), someMessageId)
+    val someOtherMessage = PushMessage("stumble", "Alpha, Bravo!", "http://abstract.com/", Map("yes" -> "Sure", "no" -> "Nope"), otherMessageId)
   }
 
   private trait Success extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, someMessage)))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, Some(someMessage))))
+    when(mockService.getCurrentMessages(any[String]())).thenReturn(Future(Seq(someMessage, someOtherMessage)))
   }
 
   private trait Duplicate extends Setup {
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, someMessage)))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, Some(someMessage))))
   }
 
   private trait AuthFailure extends Setup {
@@ -232,8 +237,11 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
   }
 
   "PushMessageController getCurrentMessages" should {
-    "return unanswered messages for a given authId" in {
+    "return unanswered messages for a given authId" in new Success {
+      pending
+      val result: Result = await(controller.getCurrentMessages(Some(someJourneyId))(currentMessageRequest))
 
+      status(result) shouldBe 200
     }
   }
 }
