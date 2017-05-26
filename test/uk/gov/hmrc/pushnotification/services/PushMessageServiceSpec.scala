@@ -101,9 +101,9 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }).when(mockMessageRepository).save(matches(otherAuth.authInternalId), any[PushMessage]())
     doReturn(successful(Right(true)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
 
-    doAnswer(new Answer[Future[Seq[PushMessage]]] {
-      override def answer(invocationOnMock: InvocationOnMock): Future[Seq[PushMessage]] = {
-        successful(Seq(somePushMessage))
+    doAnswer(new Answer[Future[Seq[PushMessagePersist]]] {
+      override def answer(invocationOnMock: InvocationOnMock): Future[Seq[PushMessagePersist]] = {
+        successful(Seq(savedMessage))
       }
     }).when(mockMessageRepository).findByAuthority(matches(someAuth.authInternalId))
 
@@ -260,8 +260,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
   "PushMessageService getCurrentMessages" should {
     "will return all messages for a given authId" in new Success {
-      val result = await(service.getCurrentMessages(someAuth.authInternalId))
-      result shouldBe Seq(somePushMessage)
+      await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
     }
   }
 
