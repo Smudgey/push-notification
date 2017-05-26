@@ -23,6 +23,7 @@ import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository._
 
@@ -98,10 +99,20 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
   }
 
   private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
-    messageRepository.findByAuthority(authId).map { messages =>
-      for {
-        pm <- messages
-      } yield (PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId))
-    }
+    messageRepository.findByAuthority(authId).flatMap {
+      messages => {
+        Future.sequence {
+          messages.map(
+            message => {
+              callbackRepository.findLatest(message.messageId).map {
+                case Some(messageCallback) if Seq(Acknowledge, Answer).contains(messageCallback.status) =>
+                  Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
+                case _ => None
+              }
+            }
+          )
+        }
+      }
+    }.map(_.flatten)
   }
 }

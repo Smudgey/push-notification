@@ -33,7 +33,7 @@ import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledged, Answered}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answered}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository._
 
@@ -107,6 +107,12 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       }
     }).when(mockMessageRepository).findByAuthority(matches(someAuth.authInternalId))
 
+
+    def latestMessageIsOfStatus(status: PushMessageStatus) = {
+      doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
+        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, 0)))
+      }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
+    }
   }
 
   private trait Duplicate extends Setup {
@@ -259,12 +265,33 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService getCurrentMessages" should {
-    "will return all messages for a given authId" in new Success {
-      await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
+    Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
+      s"will return $status messages for a given authId" in new Success {
+        latestMessageIsOfStatus(status)
+
+        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
+      }
+    }
+
+    PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
+      s"will not return $status messages for a given authId" in new Success {
+        latestMessageIsOfStatus(status)
+
+        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
+      }
+    }
+
+    "will not return messages if no latest callback" in new Success {
+      doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
+        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(None)
+      }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
+
+      await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
     }
   }
 
-    class GUIDMatcher extends Matcher[String] {
+
+  class GUIDMatcher extends Matcher[String] {
     def apply(maybeGuid: String): MatchResult = {
       val result = try {
         UUID.fromString(maybeGuid)
