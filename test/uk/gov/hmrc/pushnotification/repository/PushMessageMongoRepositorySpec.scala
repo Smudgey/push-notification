@@ -146,5 +146,14 @@ class PushMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       result.isDefined shouldBe false
     }
+
+    "find messages for a give authId" in new Setup {
+      val pushMessage1 = PushMessage(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses)
+      await(repository.save(someAuthId, pushMessage1))
+      val pushMessage2 = PushMessage(subject = otherSubject, body = otherBody, callbackUrl = otherUrl, responses = otherResponses)
+      await(repository.save(someAuthId, pushMessage2))
+
+      await(repository.findByAuthority(someAuthId)).map(_.subject) shouldBe Seq(someSubject, otherSubject)
+    }
   }
 }
