@@ -99,20 +99,14 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
   }
 
   private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
-    messageRepository.findByAuthority(authId).flatMap {
-      messages => {
-        Future.sequence {
-          messages.map(
-            message => {
-              callbackRepository.findLatest(message.messageId).map {
-                case Some(messageCallback) if Seq(Acknowledge, Answer).contains(messageCallback.status) =>
-                  Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
-                case _ => None
-              }
-            }
-          )
-        }
+    for {
+      messages <- messageRepository.findByAuthority(authId)
+      callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(message.messageId))).map(_.zip(messages))
+    } yield
+      callbackMessagesPairs.flatMap {
+        case (Some(PushMessageCallbackPersist(_, _, _, status, _, _)), message) if Seq(Acknowledge, Answer).contains(status) =>
+          Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
+        case _ => None
       }
-    }.map(_.flatten)
   }
 }
