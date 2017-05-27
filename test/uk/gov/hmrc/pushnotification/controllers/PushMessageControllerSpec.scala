@@ -24,7 +24,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
-import play.api.test.Helpers.POST
+import play.api.test.Helpers.{POST, GET}
 import play.api.test.{FakeApplication, FakeRequest}
 import uk.gov.hmrc.domain.Nino
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
@@ -62,15 +62,15 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val template = Template("NGC_002", Map("fullName" -> "Inspector Gadget", "agent" -> "Agent 47"))
     val templateJsonBody: JsValue = Json.toJson(template)
 
-    val messageRequest = fakeRequest(templateJsonBody).withHeaders(acceptHeader)
-    val invalidRequest = fakeRequest(Json.parse("""{ "foo" : "bar" }""")).withHeaders(acceptHeader)
+    val messageRequest = fakeRequest(templateJsonBody, POST).withHeaders(acceptHeader)
+    val invalidRequest = fakeRequest(Json.parse("""{ "foo" : "bar" }"""), POST).withHeaders(acceptHeader)
 
-    val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""))
-    val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""))
+    val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""), POST)
+    val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
 
-    val currentMessageRequest = fakeRequest(Json.parse(s"""{ "journeyId" : "$someJourneyId" }"""))
+    val currentMessageRequest = fakeRequest(Json.parse(s"""{ "journeyId" : "$someJourneyId" }"""), GET)
 
-    def fakeRequest(body: JsValue) = FakeRequest(POST, "url").withBody(body)
+    def fakeRequest(body: JsValue, httpMethod: String) = FakeRequest(httpMethod, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
 
     val someMessage = PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), someMessageId)
@@ -238,10 +238,34 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   "PushMessageController getCurrentMessages" should {
     "return unanswered messages for a given authId" in new Success {
-      pending
       val result: Result = await(controller.getCurrentMessages(Some(someJourneyId))(currentMessageRequest))
 
       status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """{
+          |  "messages": [
+          |    {
+          |      "subject": "snarkle",
+          |      "body": "Foo, bar baz!",
+          |      "callbackUrl": "http://example.com/quux",
+          |      "responses": {
+          |        "yes": "Sure",
+          |        "no": "Nope"
+          |      },
+          |      "messageId": "msg-some-id"
+          |    },
+          |    {
+          |      "subject": "stumble",
+          |      "body": "Alpha, Bravo!",
+          |      "callbackUrl": "http://abstract.com/",
+          |      "responses": {
+          |        "yes": "Sure",
+          |        "no": "Nope"
+          |      },
+          |      "messageId": "msg-other-id"
+          |    }
+          |  ]
+          |}""".stripMargin)
     }
   }
 }
