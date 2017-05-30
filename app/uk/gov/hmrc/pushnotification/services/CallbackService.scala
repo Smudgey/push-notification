@@ -23,7 +23,6 @@ import org.joda.time.Duration
 import play.api.Logger
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answer, Answered, PermanentlyFailed, Timedout, Timeout}
 import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
@@ -40,7 +39,6 @@ trait CallbackServiceApi {
 
 @Singleton
 class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int, lockRepository: LockRepository) extends CallbackServiceApi {
-  val completionMap: Map[PushMessageStatus, PushMessageStatus] = Map(Acknowledge -> Acknowledged, Answer -> Answered, Timeout -> Timedout)
 
   val getDeliveredLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
@@ -54,7 +52,7 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     getDeliveredLockKeeper.tryLock {
       repository.findUndelivered(100).map((batch: Seq[PushMessageCallbackPersist]) =>
         CallbackBatch(batch.map(cb =>
-          Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
+          Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempts)
         ))
       ).recover {
         case e: Exception =>
@@ -65,29 +63,11 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
   }
 
   override def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Seq[Boolean]] = {
-
     Future.sequence(batchUpdate.batch.map { (s: CallbackResult) =>
-      repository.findByStatus(s.messageId, s.status).flatMap {
-        case Some(cb) =>
-          val status = if (s.success) {
-            completionMap.getOrElse(s.status, PermanentlyFailed)
-          } else {
-            if (cb.attempt < maxAttempts) {
-              cb.status
-            } else {
-              PermanentlyFailed
-            }
-          }
-          repository.save(cb.messageId, cb.callbackUrl, status, cb.answer, cb.attempt).map {
-            case Right(b) => b
-            case Left(m) => Logger.error(s"Failed to save callback: $m")
-              false
-          }.recover {
-            case e: Exception =>
-              Logger.error(s"Failed to save callback: ${e.getMessage}")
-              throw new ServiceUnavailableException(s"failed to save callback: ${e.getMessage}")
-          }
-        case None => Future(false)
+      repository.update(s).map(_.isRight).recover {
+        case e: Exception =>
+          Logger.error(s"Unable to update callback results: ${e.getMessage}")
+          throw new ServiceUnavailableException(s"Unable to update callback results")
       }
     })
   }

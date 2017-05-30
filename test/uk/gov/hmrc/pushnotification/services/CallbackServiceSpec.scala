@@ -17,9 +17,9 @@
 package uk.gov.hmrc.pushnotification.services
 
 import org.joda.time.Duration
+import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.{doReturn, verify}
-import org.mockito.{ArgumentCaptor, ArgumentMatchers}
+import org.mockito.Mockito.doReturn
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
@@ -27,8 +27,9 @@ import uk.gov.hmrc.lock.LockRepository
 import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer, PermanentlyFailed}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain._
+import uk.gov.hmrc.pushnotification.repository.ProcessingStatus.Queued
 import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.Future.{failed, successful}
@@ -48,16 +49,18 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
     val otherStatus = Answer
     val someAnswer = None
     val otherAnswer = Some("flurb")
+    val someProcessingStatus = Queued
+    val otherProcessingStatus = Queued
     val someAttempt = 1
     val otherAttempt = 2
 
-    val someCallback = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someStatus, someAnswer, someAttempt)
-    val otherCallback = PushMessageCallbackPersist(BSONObjectID.generate, otherMessageId, otherUrl, otherStatus, otherAnswer, otherAttempt)
+    val someCallback = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someStatus, someAnswer, someProcessingStatus, someAttempt)
+    val otherCallback = PushMessageCallbackPersist(BSONObjectID.generate, otherMessageId, otherUrl, otherStatus, otherAnswer, otherProcessingStatus, otherAttempt)
 
-    val updates = CallbackResultBatch(Seq(
-      CallbackResult(someMessageId, someStatus, success = true),
-      CallbackResult(otherMessageId, otherStatus, success = false)
-    ))
+    val someCallbackResult = CallbackResult(someMessageId, someStatus, success = true)
+    val otherCallbackResult = CallbackResult(otherMessageId, otherStatus, success = false)
+
+    val updates = CallbackResultBatch(Seq(someCallbackResult, otherCallbackResult))
     val service = new CallbackService(mockRepository, maxAttempts, lockRepository)
   }
 
@@ -69,28 +72,15 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
   private trait Success extends LockOK {
     doReturn(successful(Seq(someCallback, otherCallback)), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(someMessageId), ArgumentMatchers.any[PushMessageStatus]())
-    doReturn(successful(Some(otherCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(otherMessageId), ArgumentMatchers.any[PushMessageStatus]())
-
-    doReturn(successful(Right(true)), Nil: _*).when(mockRepository).save(ArgumentMatchers.eq(someMessageId), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
-    doReturn(successful(Left("Something is wrong")), Nil: _*).when(mockRepository).save(ArgumentMatchers.eq(otherMessageId), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
-  }
-
-  private trait Final extends LockOK {
-    override val updates = CallbackResultBatch(Seq(CallbackResult(someMessageId, someStatus, success = false)))
-    override val someCallback = PushMessageCallbackPersist(BSONObjectID.generate, someMessageId, someUrl, someStatus, someAnswer, maxAttempts)
-
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.eq(someMessageId), ArgumentMatchers.any[PushMessageStatus]())
-
-    doReturn(successful(Right(true)), Nil: _*).when(mockRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    doReturn(successful(Right(someCallback)), Nil: _*).when(mockRepository).update(someCallbackResult)
+    doReturn(successful(Left("Something is wrong")), Nil: _*).when(mockRepository).update(otherCallbackResult)
   }
 
   private trait Failed extends LockOK {
 
     doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
 
-    doReturn(successful(Some(someCallback)), Nil: _*).when(mockRepository).findByStatus(ArgumentMatchers.any[String](), ArgumentMatchers.any[PushMessageStatus]())
-    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).update(any[CallbackResult]())
   }
 
   "CallbackService getUndeliveredCallbacks" should {
@@ -122,7 +112,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
     }
 
     "CallbackService updateCallbacks" should {
-      "save the callback details in the repository" in new Success {
+      "save the callback result details in the repository" in new Success {
         val actualUpdates: Seq[Boolean] = await(service.updateCallbacks(updates))
 
         actualUpdates.size shouldBe 2
@@ -131,32 +121,12 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
         actualUpdates(1) shouldBe false
       }
 
-      "permanently fail a callback if it has exceeded the number of retry attempts" in new Final {
-        val messageIdCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-        val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-        val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
-        val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
-        val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
-
-        val result: Seq[Boolean] = await(service.updateCallbacks(updates))
-
-        verify(mockRepository).save(messageIdCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
-
-        messageIdCaptor.getValue shouldBe someMessageId
-        urlCaptor.getValue shouldBe someUrl
-        statusCaptor.getValue shouldBe PermanentlyFailed
-        answerCaptor.getValue shouldBe someAnswer
-        attemptCaptor.getValue shouldBe maxAttempts
-
-        result.head shouldBe true
-      }
-
       "throw a service unavailable exception given repository problems" in new Failed {
         val result = intercept[ServiceUnavailableException] {
           await(service.updateCallbacks(updates))
         }
 
-        result.getMessage shouldBe "failed to save callback: SPLAT!"
+        result.getMessage shouldBe "Unable to update callback results"
       }
     }
   }

@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.pushnotification.repository
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.functional.syntax._
@@ -29,14 +29,15 @@ import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer, Timeout}
+import uk.gov.hmrc.pushnotification.domain.{Callback, CallbackResult, PushMessageStatus, Response}
+import uk.gov.hmrc.pushnotification.repository.ProcessingStatus.{queued, sent}
 import uk.gov.hmrc.time.DateTimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
-case class PushMessageCallbackPersist(id: BSONObjectID, messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String] = None, attempt: Int = 0)
+case class PushMessageCallbackPersist(id: BSONObjectID, messageId: String, callbackUrl: String, status: PushMessageStatus,
+                                      answer: Option[String] = None, processingStatus: ProcessingStatus, attempts: Int)
 
 object PushMessageCallbackPersist {
   implicit val oidFormat: Format[BSONObjectID] = ReactiveMongoFormats.objectIdFormats
@@ -46,7 +47,8 @@ object PushMessageCallbackPersist {
       (JsPath \ "callbackUrl").read[String] and
       (JsPath \ "status").read[PushMessageStatus](PushMessageStatus.readsFromRepository) and
       (JsPath \ "answer").readNullable[String] and
-      (JsPath \ "attempt").read[Int]
+      (JsPath \ "processingStatus").read[ProcessingStatus] and
+      (JsPath \ "attempts").read[Int]
     ) (PushMessageCallbackPersist.apply _)
   val mongoFormats: Format[PushMessageCallbackPersist] = ReactiveMongoFormats.mongoEntity({
     Format(reads, Json.writes[PushMessageCallbackPersist])
@@ -54,7 +56,7 @@ object PushMessageCallbackPersist {
 }
 
 @Singleton
-class CallbackMongoRepository @Inject()(mongo: DB)
+class CallbackMongoRepository @Inject()(mongo: DB, @Named("sendCallbackMaxRetryAttempts") maxAttempts: Int)
   extends ReactiveRepository[PushMessageCallbackPersist, BSONObjectID]("callback", () => mongo, PushMessageCallbackPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
     with AtomicUpdate[PushMessageCallbackPersist]
     with CallbackRepositoryApi
@@ -72,7 +74,7 @@ class CallbackMongoRepository @Inject()(mongo: DB)
   override def isInsertion(newRecordId: BSONObjectID, oldRecord: PushMessageCallbackPersist): Boolean = newRecordId.equals(oldRecord.id)
 
   override def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]] =
-    atomicUpsert(findCallbackByMessageIdAndStatusAndAttempt(messageId, status, attempt), insertCallback(messageId, callbackUrl, status, answer, attempt)).
+    atomicUpsert(findByMessageIdAndStatus(messageId, status), insertCallback(Callback(callbackUrl, status, Response(messageId, answer), attempt))).
       map { r =>
         if (r.writeResult.ok) {
           Right(!r.writeResult.updatedExisting)
@@ -101,12 +103,8 @@ class CallbackMongoRepository @Inject()(mongo: DB)
       collection.find(
         BSONDocument(
           "$and" -> BSONArray(
-            BSONDocument("status" ->
-              BSONDocument("$in" -> BSONArray(
-                PushMessageStatus.ordinal(Acknowledge),
-                PushMessageStatus.ordinal(Answer),
-                PushMessageStatus.ordinal(Timeout)))),
-            BSONDocument("processed" -> BSONDocument("$exists" -> false))
+            BSONDocument("processingStatus" -> queued),
+            BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
           )
         )).
         sort(Json.obj("created" -> JsNumber(-1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
@@ -116,16 +114,35 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     processBatch(undeliveredCallbacks)
   }
 
+  override def update(result: CallbackResult): Future[Either[String, PushMessageCallbackPersist]] = {
+    val processingStatus = if (result.success) {
+      ProcessingStatus.Delivered
+    } else {
+      ProcessingStatus.Queued
+    }
+
+    atomicUpdate(findByMessageIdAndStatus(result.messageId, result.status), updateStatus(processingStatus)).map { maybeUpdate =>
+      maybeUpdate.map { update =>
+        if (update.writeResult.ok) {
+          Right(update.updateType.savedValue)
+        } else {
+          Left(update.writeResult.message)
+        }
+      }.getOrElse(Left(s"Cannot find callback with message-id = ${result.messageId} and status = ${result.status}"))
+    }
+  }
+
   def processBatch(batch: Future[List[PushMessageCallbackPersist]]): Future[Seq[PushMessageCallbackPersist]] = {
     def setProcessed(batch: List[PushMessageCallbackPersist]) = {
       collection.update(
         BSONDocument("_id" -> BSONDocument("$in" -> batch.foldLeft(BSONArray())((a, p) => a.add(p.id)))),
         BSONDocument(
           "$set" -> BSONDocument(
-            "processed" -> BSONDateTime(DateTimeUtils.now.getMillis)
+            "updated" -> BSONDateTime(DateTimeUtils.now.getMillis),
+            "processingStatus" -> sent
           ),
           "$inc" -> BSONDocument(
-            "attempt" -> 1
+            "attempts" -> 1
           )
         ),
         upsert = false,
@@ -135,7 +152,7 @@ class CallbackMongoRepository @Inject()(mongo: DB)
 
     def getBatchOrFailed(batch: List[PushMessageCallbackPersist], updateWriteResult: UpdateWriteResult) = {
       if (updateWriteResult.ok) {
-        Future.successful(batch.map(n => n.copy(attempt = n.attempt + 1)))
+        Future.successful(batch.map(n => n.copy(attempts = n.attempts + 1)))
       } else {
         Future.failed(new ReactiveMongoException {
           override def message: String = "failed to fetch callbacks"
@@ -150,45 +167,43 @@ class CallbackMongoRepository @Inject()(mongo: DB)
     ) yield unsentNotifications
   }
 
-  def findCallbackByMessageIdAndStatusAndAttempt(messageId: String, status: PushMessageStatus, attempt: Int): BSONDocument =
-    BSONDocument("$and" -> BSONArray(
-      BSONDocument("messageId" -> messageId),
-      BSONDocument("status" -> PushMessageStatus.ordinal(status)),
-      BSONDocument("attempt" -> attempt)
+    def findByMessageIdAndStatus(messageId: String, status: PushMessageStatus): BSONDocument =
+      BSONDocument("$and" -> BSONArray(
+        BSONDocument("messageId" -> messageId),
+        BSONDocument("status" -> PushMessageStatus.ordinal(status))
+      ))
+
+  def updateStatus(processingStatus: ProcessingStatus) =
+    BSONDocument("$set" -> BSONDocument(
+      "updated" -> BSONDateTime(DateTimeUtils.now.getMillis),
+      "processingStatus" -> processingStatus.toString
     ))
 
-  def insertCallback(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int): BSONDocument = {
-    val callback = BSONDocument(
-      "$setOnInsert" -> BSONDocument("messageId" -> messageId),
-      "$setOnInsert" -> BSONDocument("callbackUrl" -> callbackUrl),
-      "$setOnInsert" -> BSONDocument("attempt" -> attempt),
-      "$setOnInsert" -> BSONDocument("status" -> PushMessageStatus.ordinal(status)),
-      "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis))
+  def insertCallback(callback: Callback): BSONDocument = {
+    val coreData = BSONDocument(
+      "$setOnInsert" -> BSONDocument("messageId" -> callback.response.messageId),
+      "$setOnInsert" -> BSONDocument("callbackUrl" -> callback.callbackUrl),
+      "$setOnInsert" -> BSONDocument("status" -> PushMessageStatus.ordinal(callback.status)),
+      "$setOnInsert" -> BSONDocument("attempts" -> callback.attempt),
+      "$setOnInsert" -> BSONDocument("processingStatus" ->  queued),
+      "$setOnInsert" -> BSONDocument("created" -> BSONDateTime(DateTimeUtils.now.getMillis)),
+
+      "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
 
-    val response = answer.fold(BSONDocument.empty) { ans =>
+    val response = callback.response.answer.fold(BSONDocument.empty) { ans =>
       BSONDocument("$setOnInsert" -> BSONDocument("answer" -> ans))
     }
-    callback ++ response
+    coreData ++ response
   }
-
-  def undelivered(): BSONDocument =
-    BSONDocument(
-      "$and" -> BSONArray(
-        BSONDocument("status" ->
-          BSONDocument("$in" -> BSONArray(
-            PushMessageStatus.ordinal(Acknowledge),
-            PushMessageStatus.ordinal(Answer),
-            PushMessageStatus.ordinal(Timeout)))),
-        BSONDocument("processed" -> BSONDocument("$exists" -> false))
-      )
-    )
 }
 
 
 @ImplementedBy(classOf[CallbackMongoRepository])
 trait CallbackRepositoryApi {
   def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]]
+
+  def update(result: CallbackResult): Future[Either[String, PushMessageCallbackPersist]]
 
   def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
 
