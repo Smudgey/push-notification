@@ -240,7 +240,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   "PushMessageController getCurrentMessages" should {
     "return unanswered messages for a given authId" in new Success {
-      val result: Result = await(controller.getCurrentMessages(Some(someJourneyId))(currentMessageRequest()))
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
 
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
@@ -271,13 +271,19 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     }
 
     "return no messages for a when none associated with authId" in new Success {
-      val result: Result = await(controller.getCurrentMessages(Some("some-auth-id-without-messages"))(currentMessageRequest("some-auth-id-without-messages")))
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest("some-auth-id-without-messages")))
 
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
         """{
           |  "messages": []
           |}""".stripMargin)
+    }
+
+    "return 400 bad request given an invalid request" in new Success {
+      val result: Result = await(controller.getCurrentMessages()(invalidRequest))
+
+      status(result) shouldBe 400
     }
   }
 }
