@@ -100,10 +100,11 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new BadRequestException("really bad request")))
   }
 
-  private trait RepositoryFailure extends Setup {
+  private trait DownstreamFailure extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
+    when(mockService.getCurrentMessages(any[String])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
   }
 
   private trait Invalid extends Setup {
@@ -149,7 +150,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"BAD REQUEST","message":"really bad request"}""")
     }
 
-    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 500
@@ -230,7 +231,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       status(result) shouldBe 400
     }
 
-    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 500
@@ -284,6 +285,13 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       val result: Result = await(controller.getCurrentMessages()(invalidRequest))
 
       status(result) shouldBe 400
+    }
+
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+
+      status(result) shouldBe 500
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
     }
   }
 }

@@ -101,7 +101,11 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         current =>
           current.journeyId match {
             case Some(authId) =>
-              service.getCurrentMessages(authId).map(PushMessageResponse.apply).map(message => Ok(Json.toJson(message)))
+              errorWrapper {
+                service.getCurrentMessages(authId)
+                  .map(PushMessageResponse.apply)
+                  .map(message => Ok(Json.toJson(message)))
+              }
             case None => Future.successful(BadRequest)
           }
       )
