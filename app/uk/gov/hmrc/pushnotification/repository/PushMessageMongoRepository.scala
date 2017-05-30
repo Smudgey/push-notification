@@ -20,7 +20,7 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, Json}
-import reactivemongo.api.{DB, ReadPreference}
+import reactivemongo.api.{Collection, CursorProducer, DB, ReadPreference}
 import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
@@ -88,10 +88,17 @@ class PushMessageMongoRepository @Inject()(mongo: DB)
       "$set" -> BSONDocument("responses" -> message.responses.foldLeft(BSONDocument.empty)((d, k) => d ++ BSONDocument(k._1 -> k._2))),
       "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
+
+  override def findByAuthority(authId: String): Future[Seq[PushMessagePersist]] = {
+    collection.find(
+      BSONDocument("authId" -> authId)
+    ).cursor[PushMessagePersist](ReadPreference.primaryPreferred).collect[Seq](50)
+  }
 }
 
 @ImplementedBy(classOf[PushMessageMongoRepository])
 trait PushMessageRepositoryApi {
   def save(authId: String, message: PushMessage): Future[Either[String, PushMessagePersist]]
   def find(messageId: String): Future[Option[PushMessagePersist]]
+  def findByAuthority(authId: String): Future[Seq[PushMessagePersist]]
 }

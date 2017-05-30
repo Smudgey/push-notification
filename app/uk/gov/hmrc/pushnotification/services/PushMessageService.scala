@@ -23,8 +23,9 @@ import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
-import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageRepositoryApi, PushNotificationRepositoryApi}
+import uk.gov.hmrc.pushnotification.repository._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -36,6 +37,8 @@ trait PushMessageServiceApi extends Auditor {
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
+
+  def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
 }
 
 @Singleton
@@ -89,5 +92,21 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
           case Left(error) => throw new Exception(error)
        }
     }
+  }
+
+  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = {
+    getMessagesByAuthority(authId)
+  }
+
+  private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
+    for {
+      messages <- messageRepository.findByAuthority(authId)
+      callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(message.messageId))).map(_.zip(messages))
+    } yield
+      callbackMessagesPairs.flatMap {
+        case (Some(PushMessageCallbackPersist(_, _, _, status, _, _)), message) if Seq(Acknowledge, Answer).contains(status) =>
+          Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
+        case _ => None
+      }
   }
 }

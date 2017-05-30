@@ -24,7 +24,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
-import play.api.test.Helpers.POST
+import play.api.test.Helpers.{POST, GET}
 import play.api.test.{FakeApplication, FakeRequest}
 import uk.gov.hmrc.domain.Nino
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
@@ -48,6 +48,8 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val mockService = mock[PushMessageServiceApi]
     val mockAuthConnector = mock[AuthConnector]
 
+    when(mockService.getCurrentMessages(any[String])).thenReturn(Future(Seq.empty))
+
     val testAccessControl = new AccountAccessControlWithHeaderCheck(new AccountAccessControl(new Auth(mockAuthConnector)))
 
     val controller = new PushMessageController(mockService, testAccessControl)
@@ -56,31 +58,36 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     val someMessageId = "msg-some-id"
     val otherMessageId = "msg-other-id"
+    val someJourneyId = "journey-id"
 
     val acceptHeader = "Accept" -> "application/vnd.hmrc.1.0+json"
     val template = Template("NGC_002", Map("fullName" -> "Inspector Gadget", "agent" -> "Agent 47"))
     val templateJsonBody: JsValue = Json.toJson(template)
 
-    val messageRequest = fakeRequest(templateJsonBody).withHeaders(acceptHeader)
-    val invalidRequest = fakeRequest(Json.parse("""{ "foo" : "bar" }""")).withHeaders(acceptHeader)
+    val messageRequest = fakeRequest(templateJsonBody, POST).withHeaders(acceptHeader)
+    val invalidRequest = fakeRequest(Json.parse("""{ "foo" : "bar" }"""), POST).withHeaders(acceptHeader)
 
-    val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""))
-    val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""))
+    val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""), POST)
+    val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
 
-    def fakeRequest(body: JsValue) = FakeRequest(POST, "url").withBody(body)
+    def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET).withHeaders(acceptHeader)
+
+    def fakeRequest(body: JsValue, httpMethod: String) = FakeRequest(httpMethod, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
 
-    val someMessage = Some(PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), someMessageId))
+    val someMessage = PushMessage("snarkle", "Foo, bar baz!", "http://example.com/quux", Map("yes" -> "Sure", "no" -> "Nope"), someMessageId)
+    val someOtherMessage = PushMessage("stumble", "Alpha, Bravo!", "http://abstract.com/", Map("yes" -> "Sure", "no" -> "Nope"), otherMessageId)
   }
 
   private trait Success extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, someMessage)))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, Some(someMessage))))
+    when(mockService.getCurrentMessages(someJourneyId)).thenReturn(Future(Seq(someMessage, someOtherMessage)))
   }
 
   private trait Duplicate extends Setup {
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, someMessage)))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, Some(someMessage))))
   }
 
   private trait AuthFailure extends Setup {
@@ -93,10 +100,11 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new BadRequestException("really bad request")))
   }
 
-  private trait RepositoryFailure extends Setup {
+  private trait DownstreamFailure extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
+    when(mockService.getCurrentMessages(any[String])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
   }
 
   private trait Invalid extends Setup {
@@ -142,7 +150,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"BAD REQUEST","message":"really bad request"}""")
     }
 
-    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
       val result: Result = await(controller.sendTemplateMessage()(messageRequest))
 
       status(result) shouldBe 500
@@ -223,11 +231,74 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       status(result) shouldBe 400
     }
 
-    "return 500 result when bad service unavailable exception is thrown by service" in new RepositoryFailure {
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 500
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
+    }
+  }
+
+  "PushMessageController getCurrentMessages" should {
+    "return unanswered messages for a given authId" in new Success {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """{
+          |  "messages": [
+          |    {
+          |      "subject": "snarkle",
+          |      "body": "Foo, bar baz!",
+          |      "callbackUrl": "http://example.com/quux",
+          |      "responses": {
+          |        "yes": "Sure",
+          |        "no": "Nope"
+          |      },
+          |      "messageId": "msg-some-id"
+          |    },
+          |    {
+          |      "subject": "stumble",
+          |      "body": "Alpha, Bravo!",
+          |      "callbackUrl": "http://abstract.com/",
+          |      "responses": {
+          |        "yes": "Sure",
+          |        "no": "Nope"
+          |      },
+          |      "messageId": "msg-other-id"
+          |    }
+          |  ]
+          |}""".stripMargin)
+    }
+
+    "return no messages for a when none associated with authId" in new Success {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest("some-auth-id-without-messages")))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """{
+          |  "messages": []
+          |}""".stripMargin)
+    }
+
+    "return 400 bad request given an invalid request" in new Success {
+      val result: Result = await(controller.getCurrentMessages()(invalidRequest))
+
+      status(result) shouldBe 400
+    }
+
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+
+      status(result) shouldBe 500
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
+    }
+
+    "return 401 result when authority record does not contain an internal-id" in new AuthFailure {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+
+      status(result) shouldBe 401
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
     }
   }
 }

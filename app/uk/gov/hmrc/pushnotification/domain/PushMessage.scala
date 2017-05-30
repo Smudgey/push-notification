@@ -24,51 +24,45 @@ import play.api.libs.json._
 
 import scala.math.BigDecimal
 
-trait PushMessageStatus
+sealed trait PushMessageStatus
 
 object PushMessageStatus {
-  val statuses = List("acknowledge", "acknowledged", "answer", "answered", "timeout", "timed-out", "failed")
+  val statuses = List(Acknowledge, Acknowledged, Answer, Answered, Timeout, Timedout, PermanentlyFailed)
 
   case object Acknowledge extends PushMessageStatus {
-    override def toString: String = statuses.head
+    override def toString: String = "acknowledge"
   }
 
   case object Acknowledged extends PushMessageStatus {
-    override def toString: String = statuses(1)
+    override def toString: String = "acknowledged"
   }
 
   case object Answer extends PushMessageStatus {
-    override def toString: String = statuses(2)
+    override def toString: String = "answer"
   }
 
   case object Answered extends PushMessageStatus {
-    override def toString: String = statuses(3)
+    override def toString: String = "answered"
   }
 
   case object Timeout extends PushMessageStatus {
-    override def toString: String = statuses(4)
+    override def toString: String = "timeout"
   }
 
   case object Timedout extends PushMessageStatus {
-    override def toString: String = statuses(5)
+    override def toString: String = "timed-out"
   }
 
   case object PermanentlyFailed extends PushMessageStatus {
-    override def toString: String = statuses(6)
+    override def toString: String = "failed"
   }
 
-  def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status.toString)
+  def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status)
 
   val readsFromRepository: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
     override def reads(json: JsValue): JsResult[PushMessageStatus] =
       json match {
-        case JsNumber(value: BigDecimal) if value == ordinal(Acknowledge) => JsSuccess(Acknowledge)
-        case JsNumber(value: BigDecimal) if value == ordinal(Acknowledged) => JsSuccess(Acknowledged)
-        case JsNumber(value: BigDecimal) if value == ordinal(Answer) => JsSuccess(Answer)
-        case JsNumber(value: BigDecimal) if value == ordinal(Answered) => JsSuccess(Answered)
-        case JsNumber(value: BigDecimal) if value == ordinal(Timeout) => JsSuccess(Timeout)
-        case JsNumber(value: BigDecimal) if value == ordinal(Timedout) => JsSuccess(Timedout)
-        case JsNumber(value: BigDecimal) if value == ordinal(PermanentlyFailed) => JsSuccess(PermanentlyFailed)
+        case JsNumber(value: BigDecimal) if statuses.exists(ordinal(_) == value) => JsSuccess(statuses(value.intValue()))
         case _ => JsError(s"Failed to resolve $json")
       }
   }
