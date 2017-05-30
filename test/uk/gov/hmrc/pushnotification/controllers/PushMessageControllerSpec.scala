@@ -48,6 +48,8 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val mockService = mock[PushMessageServiceApi]
     val mockAuthConnector = mock[AuthConnector]
 
+    when(mockService.getCurrentMessages(any[String])).thenReturn(Future(Seq.empty))
+
     val testAccessControl = new AccountAccessControlWithHeaderCheck(new AccountAccessControl(new Auth(mockAuthConnector)))
 
     val controller = new PushMessageController(mockService, testAccessControl)
@@ -68,7 +70,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""), POST)
     val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
 
-    val currentMessageRequest = fakeRequest(Json.parse(s"""{ "journeyId" : "$someJourneyId" }"""), GET)
+    def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET)
 
     def fakeRequest(body: JsValue, httpMethod: String) = FakeRequest(httpMethod, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
@@ -81,7 +83,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, Some(someMessage))))
-    when(mockService.getCurrentMessages(any[String]())).thenReturn(Future(Seq(someMessage, someOtherMessage)))
+    when(mockService.getCurrentMessages(someJourneyId)).thenReturn(Future(Seq(someMessage, someOtherMessage)))
   }
 
   private trait Duplicate extends Setup {
@@ -238,7 +240,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   "PushMessageController getCurrentMessages" should {
     "return unanswered messages for a given authId" in new Success {
-      val result: Result = await(controller.getCurrentMessages(Some(someJourneyId))(currentMessageRequest))
+      val result: Result = await(controller.getCurrentMessages(Some(someJourneyId))(currentMessageRequest()))
 
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
@@ -265,6 +267,16 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
           |      "messageId": "msg-other-id"
           |    }
           |  ]
+          |}""".stripMargin)
+    }
+
+    "return no messages for a when none associated with authId" in new Success {
+      val result: Result = await(controller.getCurrentMessages(Some("some-auth-id-without-messages"))(currentMessageRequest("some-auth-id-without-messages")))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """{
+          |  "messages": []
           |}""".stripMargin)
     }
   }
