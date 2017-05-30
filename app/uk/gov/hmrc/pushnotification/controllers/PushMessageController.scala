@@ -91,24 +91,24 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
       )
   }
 
-  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] = Action.async(BodyParsers.parse.json) {
-    implicit request =>
-      request.body.validate[Current].fold(
-        errors => {
-          Logger.warn("Service failed for getCurrentMessages: " + errors)
-          Future.successful(BadRequest)
-        },
-        current =>
-          current.journeyId match {
-            case Some(authId) =>
-              errorWrapper {
-                service.getCurrentMessages(authId)
-                  .map(PushMessageResponse.apply)
-                  .map(message => Ok(Json.toJson(message)))
-              }
-            case None => Future.successful(BadRequest)
-          }
-      )
-  }
-
+  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+      implicit request =>
+        request.body.validate[Current].fold(
+          errors => {
+            Logger.warn("Service failed for getCurrentMessages: " + errors)
+            Future.successful(BadRequest)
+          },
+          current =>
+            current.journeyId match {
+              case Some(authId) =>
+                errorWrapper {
+                  service.getCurrentMessages(authId)
+                    .map(PushMessageResponse.apply)
+                    .map(message => Ok(Json.toJson(message)))
+                }
+              case None => Future.successful(BadRequest)
+            }
+        )
+    }
 }

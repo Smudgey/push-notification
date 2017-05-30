@@ -70,7 +70,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""), POST)
     val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
 
-    def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET)
+    def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET).withHeaders(acceptHeader)
 
     def fakeRequest(body: JsValue, httpMethod: String) = FakeRequest(httpMethod, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
@@ -292,6 +292,13 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
       status(result) shouldBe 500
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
+    }
+
+    "return 401 result when authority record does not contain an internal-id" in new AuthFailure {
+      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+
+      status(result) shouldBe 401
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
     }
   }
 }
