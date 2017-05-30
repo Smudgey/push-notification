@@ -266,7 +266,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
   "PushMessageService getCurrentMessages" should {
     Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
-      s"will return $status messages for a given authId" in new Success {
+      s"return $status messages for a given authId" in new Success {
         latestMessageIsOfStatus(status)
 
         await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
@@ -274,14 +274,14 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
-      s"will not return $status messages for a given authId" in new Success {
+      s"not return $status messages for a given authId" in new Success {
         latestMessageIsOfStatus(status)
 
         await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
       }
     }
 
-    "will not return messages if no latest callback" in new Success {
+    "not return messages if no latest callback" in new Success {
       doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
         override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(None)
       }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
