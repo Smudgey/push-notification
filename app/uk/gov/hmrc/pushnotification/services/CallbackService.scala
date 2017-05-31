@@ -30,15 +30,16 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 @ImplementedBy(classOf[CallbackService])
-trait CallbackServiceApi {
+trait CallbackServiceApi extends BatchProcessor {
 
   def getUndeliveredCallbacks: Future[Option[CallbackBatch]]
 
-  def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Seq[Boolean]]
+  def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Boolean]
 }
 
 @Singleton
 class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int, lockRepository: LockRepository) extends CallbackServiceApi {
+  override val maxConcurrent: Int = 10
 
   val getDeliveredLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
@@ -62,13 +63,7 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     }
   }
 
-  override def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Seq[Boolean]] = {
-    Future.sequence(batchUpdate.batch.map { (s: CallbackResult) =>
-      repository.update(s).map(_.isRight).recover {
-        case e: Exception =>
-          Logger.error(s"Unable to update callback results: ${e.getMessage}")
-          throw new ServiceUnavailableException(s"Unable to update callback results")
-      }
-    })
+  override def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Boolean] = {
+    processBatch[CallbackResult](batchUpdate.batch, repository.update)
   }
 }

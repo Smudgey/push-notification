@@ -72,7 +72,7 @@ class CallbackController @Inject()(service: CallbackServiceApi) extends Callback
         },
         updates => {
           errorWrapper(service.updateCallbacks(updates).map { updates =>
-            if (updates.foldLeft(true)(_ && _)) {
+            if (updates) {
               NoContent
             } else {
               Accepted

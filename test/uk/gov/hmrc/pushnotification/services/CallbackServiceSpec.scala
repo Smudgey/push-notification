@@ -24,7 +24,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
 import uk.gov.hmrc.lock.LockRepository
-import uk.gov.hmrc.play.http.ServiceUnavailableException
+import uk.gov.hmrc.play.http.{HttpException, ServiceUnavailableException}
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
@@ -113,20 +113,19 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
 
     "CallbackService updateCallbacks" should {
       "save the callback result details in the repository" in new Success {
-        val actualUpdates: Seq[Boolean] = await(service.updateCallbacks(updates))
+        // TODO: capture arguments!
 
-        actualUpdates.size shouldBe 2
+        val actualUpdates: Boolean = await(service.updateCallbacks(updates))
 
-        actualUpdates.head shouldBe true
-        actualUpdates(1) shouldBe false
+        actualUpdates shouldBe false
       }
 
       "throw a service unavailable exception given repository problems" in new Failed {
-        val result = intercept[ServiceUnavailableException] {
+        val result = intercept[HttpException] {
           await(service.updateCallbacks(updates))
         }
 
-        result.getMessage shouldBe "Unable to update callback results"
+        result.getMessage shouldBe s"""processGroup failed for value="${someCallbackResult.toString}""""
       }
     }
   }

@@ -67,7 +67,7 @@ class CallbackControllerSpec  extends UnitSpec with WithFakeApplication with Sca
     val otherCallback = Callback("http://call/back/there", Timeout, Response("msg-2", None), 1)
 
     when(mockService.getUndeliveredCallbacks).thenReturn(Future(Some(CallbackBatch(Seq(someCallback, otherCallback)))))
-    when(mockService.updateCallbacks(ArgumentMatchers.any[CallbackResultBatch]())).thenReturn(Future(Seq(true, true, true)))
+    when(mockService.updateCallbacks(ArgumentMatchers.any[CallbackResultBatch]())).thenReturn(Future(true))
   }
 
   private trait NoCallbacks extends Setup {
@@ -79,7 +79,7 @@ class CallbackControllerSpec  extends UnitSpec with WithFakeApplication with Sca
   }
 
   private trait Partial extends Setup {
-    when(mockService.updateCallbacks(ArgumentMatchers.any[CallbackResultBatch]())).thenReturn(Future(Seq(true, false, true)))
+    when(mockService.updateCallbacks(ArgumentMatchers.any[CallbackResultBatch]())).thenReturn(Future(false))
   }
 
   private trait RepositoryFailure extends Setup {
