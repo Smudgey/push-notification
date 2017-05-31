@@ -56,7 +56,7 @@ object PushMessageCallbackPersist {
 }
 
 @Singleton
-class CallbackMongoRepository @Inject()(mongo: DB, @Named("sendCallbackMaxRetryAttempts") maxAttempts: Int)
+class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int)
   extends ReactiveRepository[PushMessageCallbackPersist, BSONObjectID]("callback", () => mongo, PushMessageCallbackPersist.mongoFormats, ReactiveMongoFormats.objectIdFormats)
     with AtomicUpdate[PushMessageCallbackPersist]
     with CallbackRepositoryApi

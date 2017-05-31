@@ -38,7 +38,7 @@ trait CallbackServiceApi extends BatchProcessor {
 }
 
 @Singleton
-class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int, lockRepository: LockRepository) extends CallbackServiceApi {
+class CallbackService @Inject()(repository: CallbackRepositoryApi, lockRepository: LockRepository) extends CallbackServiceApi {
   override val maxConcurrent: Int = 10
 
   val getDeliveredLockKeeper = new LockKeeper {

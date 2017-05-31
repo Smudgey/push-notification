@@ -61,7 +61,7 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
     val otherCallbackResult = CallbackResult(otherMessageId, otherStatus, success = false)
 
     val updates = CallbackResultBatch(Seq(someCallbackResult, otherCallbackResult))
-    val service = new CallbackService(mockRepository, maxAttempts, lockRepository)
+    val service = new CallbackService(mockRepository, lockRepository)
   }
 
   private trait LockOK extends Setup {
