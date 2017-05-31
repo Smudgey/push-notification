@@ -33,8 +33,9 @@ import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answered}
+import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.Acknowledge
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.repository.ProcessingStatus.Queued
 import uk.gov.hmrc.pushnotification.repository._
 
 import scala.collection.JavaConversions._
@@ -58,21 +59,23 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val someAuth = Authority(Nino("CS700100A"), L200, "int-auth-id-1")
     val otherAuth = Authority(Nino("CS700101A"), L200, "int-auth-id-2")
     val brokenAuth = Authority(Nino("CS700102A"), L200, "int-auth-id-3")
+
+    val someMessageId = "53809ad8-f482-41bd-8aef-2cbe7f324a39"
+
     val someTemplateId = "NGC_002"
     val someCallbackUrl = "http://callback.url"
     val someParams = Map("fullName" -> "Clark Kent", "agent" -> "James 007 Bond", "callbackUrl" -> "http://callback.url","messageId" -> someMessageId)
 
     val endpointsWithOs = Map("foo" -> "windows", "bar" -> "android", "baz" -> "ios")
     val someTemplate = Template(someTemplateId, someParams)
-    val somePushMessage = PushMessage(someSubject, someBody, someCallbackUrl, someResponses, someMessageId )
-    val someMessageId = "53809ad8-f482-41bd-8aef-2cbe7f324a39"
-    val someStatus = Acknowledged
+    val someStatus = Acknowledge
     val someAnswer = None
     val someSubject = "Grault"
     val someBody = "There is no Frigate like a Book\nTo take us Lands away"
     val someResponses = Map("yes" -> "Yes", "no" -> "No")
     val someUrl = "http://over.yonder/call/back"
 
+    val somePushMessage = PushMessage(someSubject, someBody, someCallbackUrl, someResponses, someMessageId )
     val savedMessage = PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someUrl)
   }
 
@@ -110,7 +113,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
       doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, 0)))
+        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
       }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
     }
   }
@@ -192,13 +195,13 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-      val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledged, None))
+      val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledge, None))
 
       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
       idCaptor.getValue shouldBe someMessageId
       urlCaptor.getValue shouldBe someUrl
-      statusCaptor.getValue shouldBe Acknowledged
+      statusCaptor.getValue shouldBe Acknowledge
       answerCaptor.getValue shouldBe None
       attemptCaptor.getValue shouldBe 0
 
@@ -218,13 +221,13 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
        val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
        val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-       val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Answered, Some("yes")))
+       val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
 
        verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
        idCaptor.getValue shouldBe someMessageId
        urlCaptor.getValue shouldBe someUrl
-       statusCaptor.getValue shouldBe Answered
+       statusCaptor.getValue shouldBe PushMessageStatus.Answer
        answerCaptor.getValue shouldBe Some("yes")
        attemptCaptor.getValue shouldBe 0
 
@@ -249,7 +252,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     "throw a bad request exception given an invalid answer" in new Success {
       val result = intercept[BadRequestException] {
-        await(service.respondToMessage(someMessageId, Answered, Some("snarkle")))
+        await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("snarkle")))
       }
 
       result.getMessage shouldBe "invalid answer [snarkle]"

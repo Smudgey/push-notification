@@ -104,7 +104,7 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
       callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(message.messageId))).map(_.zip(messages))
     } yield
       callbackMessagesPairs.flatMap {
-        case (Some(PushMessageCallbackPersist(_, _, _, status, _, _)), message) if Seq(Acknowledge, Answer).contains(status) =>
+        case (Some(PushMessageCallbackPersist(_, _, _, status, _, _, _)), message) if Seq(Acknowledge, Answer).contains(status) =>
           Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
         case _ => None
       }

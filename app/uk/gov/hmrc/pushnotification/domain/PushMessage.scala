@@ -27,30 +27,18 @@ import scala.math.BigDecimal
 sealed trait PushMessageStatus
 
 object PushMessageStatus {
-  val statuses = List(Acknowledge, Acknowledged, Answer, Answered, Timeout, Timedout, PermanentlyFailed)
+  val statuses = List(Acknowledge, Answer, Timeout, PermanentlyFailed)
 
   case object Acknowledge extends PushMessageStatus {
     override def toString: String = "acknowledge"
-  }
-
-  case object Acknowledged extends PushMessageStatus {
-    override def toString: String = "acknowledged"
   }
 
   case object Answer extends PushMessageStatus {
     override def toString: String = "answer"
   }
 
-  case object Answered extends PushMessageStatus {
-    override def toString: String = "answered"
-  }
-
   case object Timeout extends PushMessageStatus {
     override def toString: String = "timeout"
-  }
-
-  case object Timedout extends PushMessageStatus {
-    override def toString: String = "timed-out"
   }
 
   case object PermanentlyFailed extends PushMessageStatus {
@@ -67,11 +55,21 @@ object PushMessageStatus {
       }
   }
 
-  val writesToRepository: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
-    override def writes(status: PushMessageStatus): JsNumber = JsNumber(ordinal(status))
+  val writes: Writes[PushMessageStatus] = new Writes[PushMessageStatus] {
+    override def writes(status: PushMessageStatus): JsString = JsString(status.toString)
   }
 
-  implicit val formats = Format(PushMessageStatus.readsFromRepository, PushMessageStatus.writesToRepository)
+  val reads: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
+    override def reads(json: JsValue): JsResult[PushMessageStatus] =
+      json match {
+        case JsString(value: String) if value == Acknowledge.toString => JsSuccess(Acknowledge)
+        case JsString(value: String) if value == Answer.toString => JsSuccess(Answer)
+        case JsString(value: String) if value == Timeout.toString => JsSuccess(Timeout)
+        case JsString(value: String) if value == PermanentlyFailed.toString => JsSuccess(PermanentlyFailed)
+        case _ => JsError(s"Failed to resolve $json")
+      }
+  }
+  implicit val formats = Format(PushMessageStatus.reads, PushMessageStatus.writes)
 }
 
 case class PushMessage(subject: String, body: String, callbackUrl: String, responses: Map[String, String] = Map.empty, messageId: String = UUID.randomUUID().toString)

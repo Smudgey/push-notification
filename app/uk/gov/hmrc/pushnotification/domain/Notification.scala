@@ -81,3 +81,5 @@ object Notification {
     )
   }
 }
+
+case class NotificationResult(notificationId: String, status: NotificationStatus)

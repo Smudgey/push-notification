@@ -23,24 +23,23 @@ import org.joda.time.Duration
 import play.api.Logger
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Acknowledged, Answer, Answered, PermanentlyFailed, Timedout, Timeout}
-import uk.gov.hmrc.pushnotification.domain.{Callback, PushMessageStatus, Response}
-import uk.gov.hmrc.pushnotification.repository.CallbackRepositoryApi
+import uk.gov.hmrc.pushnotification.domain._
+import uk.gov.hmrc.pushnotification.repository.{CallbackRepositoryApi, PushMessageCallbackPersist}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 @ImplementedBy(classOf[CallbackService])
-trait CallbackServiceApi {
+trait CallbackServiceApi extends BatchProcessor {
 
-  def getUndeliveredCallbacks: Future[Option[Seq[Callback]]]
+  def getUndeliveredCallbacks: Future[Option[CallbackBatch]]
 
-  def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]]
+  def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Boolean]
 }
 
 @Singleton
-class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clientCallbackMaxRetryAttempts") maxAttempts: Int, lockRepository: LockRepository) extends CallbackServiceApi {
-  val completionMap: Map[PushMessageStatus, PushMessageStatus] = Map(Acknowledge -> Acknowledged, Answer -> Answered, Timeout -> Timedout)
+class CallbackService @Inject()(repository: CallbackRepositoryApi, lockRepository: LockRepository) extends CallbackServiceApi {
+  override val maxConcurrent: Int = 10
 
   val getDeliveredLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
@@ -50,20 +49,12 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
   }
 
-  val getUpdateCallbacksLockKeeper = new LockKeeper {
-    override def repo: LockRepository = lockRepository
-
-    override def lockId: String = "updateCallbacks"
-
-    override val forceLockReleaseAfter: Duration = Duration.standardMinutes(2)
-  }
-
-  override def getUndeliveredCallbacks: Future[Option[Seq[Callback]]] = {
+  override def getUndeliveredCallbacks: Future[Option[CallbackBatch]] = {
     getDeliveredLockKeeper.tryLock {
-      repository.findUndelivered.map(
-        _.map(cb =>
-          Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempt)
-        )
+      repository.findUndelivered(100).map((batch: Seq[PushMessageCallbackPersist]) =>
+        CallbackBatch(batch.map(cb =>
+          Callback(cb.callbackUrl, cb.status, Response(cb.messageId, cb.answer), cb.attempts)
+        ))
       ).recover {
         case e: Exception =>
           Logger.error(s"Unable to retrieve undelivered callbacks: ${e.getMessage}")
@@ -72,31 +63,7 @@ class CallbackService @Inject()(repository: CallbackRepositoryApi, @Named("clien
     }
   }
 
-  override def updateCallbacks(updates: Map[String, Boolean]): Future[Option[Seq[Boolean]]] = {
-    getUpdateCallbacksLockKeeper.tryLock {
-      Future.sequence(updates.map(s => repository.findLatest(s._1).flatMap {
-        case Some(cb) =>
-          val status = if (s._2) {
-            completionMap.getOrElse(cb.status, PermanentlyFailed)
-          } else {
-            if (cb.attempt < maxAttempts) {
-              cb.status
-            } else {
-              PermanentlyFailed
-            }
-          }
-          repository.save(cb.messageId, cb.callbackUrl, status, cb.answer, cb.attempt).map {
-            case Right(b) => b
-            case Left(m) => Logger.error(s"Failed to save callback: $m")
-              false
-          }.recover {
-            case e: Exception =>
-              Logger.error(s"Failed to save callback: ${e.getMessage}")
-              throw new ServiceUnavailableException(s"failed to save callback: ${e.getMessage}")
-          }
-        case None => Future(false)
-      }).toSeq
-      )
-    }
+  override def updateCallbacks(batchUpdate: CallbackResultBatch): Future[Boolean] = {
+    processBatch[CallbackResult](batchUpdate.batch, repository.update)
   }
 }
