@@ -27,7 +27,7 @@ import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
-import uk.gov.hmrc.pushnotification.domain.{PushMessage, Response, Template}
+import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -38,6 +38,8 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue]
 
   def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
+
+  def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
 }
 
 @Singleton
@@ -77,7 +79,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
               if (result) {
                 maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
               } else {
-                Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
+                Logger.info(s"Response for messageId=[${ response.messageId }] with status=[$status], answer=[${ response.answer.getOrElse("") }] was previously processed")
                 maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
               }
             })
@@ -88,4 +90,25 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         }
       )
   }
+
+  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+      implicit request =>
+        request.body.validate[Current].fold(
+          errors => {
+            Logger.warn("Service failed for getCurrentMessages: " + errors)
+            Future.successful(BadRequest)
+          },
+          current =>
+            current.journeyId match {
+              case Some(authId) =>
+                errorWrapper {
+                  service.getCurrentMessages(authId)
+                    .map(PushMessageResponse.apply)
+                    .map(message => Ok(Json.toJson(message)))
+                }
+              case None => Future.successful(BadRequest)
+            }
+        )
+    }
 }

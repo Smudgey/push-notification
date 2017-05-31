@@ -18,40 +18,39 @@ package uk.gov.hmrc.pushnotification.domain
 
 import java.util.UUID
 
+import play.api.libs.functional.syntax._
+import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.math.BigDecimal
 
-trait PushMessageStatus
+sealed trait PushMessageStatus
 
 object PushMessageStatus {
-  val statuses = List("acknowledge", "answer", "timeout", "failed")
+  val statuses = List(Acknowledge, Answer, Timeout, PermanentlyFailed)
 
   case object Acknowledge extends PushMessageStatus {
-    override def toString: String = statuses.head
+    override def toString: String = "acknowledge"
   }
 
   case object Answer extends PushMessageStatus {
-    override def toString: String = statuses(1)
+    override def toString: String = "answer"
   }
 
   case object Timeout extends PushMessageStatus {
-    override def toString: String = statuses(2)
+    override def toString: String = "timeout"
   }
 
   case object PermanentlyFailed extends PushMessageStatus {
-    override def toString: String = statuses(3)
+    override def toString: String = "failed"
   }
 
-  def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status.toString)
+  def ordinal(status: PushMessageStatus): Int = statuses.indexOf(status)
 
   val readsFromRepository: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
     override def reads(json: JsValue): JsResult[PushMessageStatus] =
       json match {
-        case JsNumber(value: BigDecimal) if value == ordinal(Acknowledge) => JsSuccess(Acknowledge)
-        case JsNumber(value: BigDecimal) if value == ordinal(Answer) => JsSuccess(Answer)
-        case JsNumber(value: BigDecimal) if value == ordinal(Timeout) => JsSuccess(Timeout)
-        case JsNumber(value: BigDecimal) if value == ordinal(PermanentlyFailed) => JsSuccess(PermanentlyFailed)
+        case JsNumber(value: BigDecimal) if statuses.exists(ordinal(_) == value) => JsSuccess(statuses(value.intValue()))
         case _ => JsError(s"Failed to resolve $json")
       }
   }
