@@ -28,7 +28,7 @@ import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{queued, sent}
-import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
+import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -92,6 +92,8 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       }.getOrElse(Left(s"Cannot find notification with id = $notificationId"))
     }
   }
+
+  override def update(result: NotificationResult): Future[Either[String, NotificationPersist]] = update(result.notificationId, result.status)
 
   override def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]] =
     collection.
@@ -196,6 +198,8 @@ trait PushNotificationRepositoryApi {
   def save(authId: String, notification: Notification): Future[Either[String, NotificationPersist]]
 
   def update(notificationId: String, status: NotificationStatus): Future[Either[String, NotificationPersist]]
+
+  def update(result: NotificationResult): Future[Either[String, NotificationPersist]]
 
   def findByStatus(status: NotificationStatus): Future[Seq[NotificationPersist]]
 

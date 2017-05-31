@@ -62,7 +62,7 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
         },
         updates => {
           errorWrapper(service.updateNotifications(updates).map { updates =>
-            if (updates.foldLeft(true)(_ && _)) {
+            if (updates) {
               NoContent
             } else {
               Accepted

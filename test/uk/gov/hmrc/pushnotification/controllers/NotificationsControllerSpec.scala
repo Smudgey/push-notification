@@ -65,7 +65,7 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
 
     when(mockService.getQueuedNotifications).thenReturn(Future(Some(Seq(someNotification, otherNotification))))
     when(mockService.getTimedOutNotifications).thenReturn(Future(Some(Seq(otherNotification, someNotification))))
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String, NotificationStatus]]())).thenReturn(Future(Seq(true, true, true)))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String, NotificationStatus]]())).thenReturn(Future(true))
   }
 
   private trait NoNotifications extends Setup {
@@ -79,7 +79,7 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
   }
 
   private trait Partial extends Setup {
-    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String, NotificationStatus]]())).thenReturn(Future(Seq(true, false, true, true)))
+    when(mockService.updateNotifications(ArgumentMatchers.any[Map[String, NotificationStatus]]())).thenReturn(Future(false))
   }
 
   private trait RepositoryFailure extends Setup {

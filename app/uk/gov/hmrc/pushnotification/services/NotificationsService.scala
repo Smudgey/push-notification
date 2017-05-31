@@ -23,24 +23,27 @@ import org.joda.time.Duration
 import play.api.Logger
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
 import uk.gov.hmrc.play.http.ServiceUnavailableException
-import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
+import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 @ImplementedBy(classOf[NotificationsService])
-trait NotificationsServiceApi {
+trait NotificationsServiceApi extends BatchProcessor {
 
   def getQueuedNotifications: Future[Option[Seq[Notification]]]
 
   def getTimedOutNotifications: Future[Option[Seq[Notification]]]
 
-  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]]
+  def updateNotifications(updates: Map[String, NotificationStatus]): Future[Boolean]
 }
 
 @Singleton
 class NotificationsService @Inject()(notificationRepository: PushNotificationRepositoryApi, lockRepository: LockRepository, @Named("unsentNotificationsMaxBatchSize") maxBatchSize: Int, @Named("unsentNotificationsTimeout") timeoutMillis: Long) extends NotificationsServiceApi {
+
+  override val maxConcurrent: Int = 10
+
   val getQueuedLockKeeper = new LockKeeper {
     override def repo: LockRepository = lockRepository
 
@@ -83,18 +86,9 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
     }
   }
 
-  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Seq[Boolean]] = {
-    val updated = updates.map(s => notificationRepository.update(s._1, s._2).map {
-      case Right(_) => true
-      case Left(msg) =>
-        Logger.warn(s"unable to update notification [${s._1} -> ${s._2}]: $msg")
-        false
-    }.recover {
-      case e: Exception =>
-        Logger.error(s"Unable to update notification [${s._1} -> ${s._2}]: ${e.getMessage}")
-        throw new ServiceUnavailableException(s"Unable to update notification [${s._1} -> ${s._2}]")
-    }).toSeq
+  override def updateNotifications(updates: Map[String, NotificationStatus]): Future[Boolean] = {
+    val results: Seq[NotificationResult] = updates.map(s => NotificationResult(s._1, s._2)).toSeq
 
-    Future.sequence(updated)
+    processBatch[NotificationResult](results, notificationRepository.update)
   }
 }
