@@ -46,6 +46,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
     val yetAnotherEndpoint = "wibble:wobble"
     val someContent = "Hello world"
     val someOs = "windows"
+    val otherOs = "android"
     val otherContent = "Goodbye"
     val someUrl = Some("http://snarkle.internal/foo/bar")
   }
@@ -75,8 +76,8 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
   }
 
   "PushNotificationMongoRepository" should {
-    "persist notifications" in new Setup {
-      val notification = Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)
+    "persist notifications that do not include a messageId" in new Setup {
+      val notification = Notification(messageId = None, endpoint = someEndpoint, content = someContent, os = someOs)
 
       val result: Either[String, NotificationPersist] = await(repository.save(someAuthId, notification))
 
@@ -88,8 +89,30 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
           actual.notificationId shouldBe notification.notificationId.get
           actual.status shouldBe notification.status
           actual.attempts shouldBe 0
+          actual.messageId shouldBe None
+          actual.os shouldBe someOs
         case Left(e) => fail(e)
       }
+    }
+
+      "persist notifications that do include a messageId" in new Setup {
+        val notification = Notification(messageId = otherMessageId, endpoint = otherEndpoint, content = otherContent, os = otherOs)
+
+        val result: Either[String, NotificationPersist] = await(repository.save(otherAuthId, notification))
+
+        result match {
+          case Right(actual) =>
+            actual.authId shouldBe otherAuthId
+            actual.endpoint shouldBe notification.endpoint
+            actual.content shouldBe notification.content
+            actual.notificationId shouldBe notification.notificationId.get
+            actual.status shouldBe notification.status
+            actual.attempts shouldBe 0
+            actual.messageId shouldBe notification.messageId
+            actual.os shouldBe otherOs
+          case Left(e) => fail(e)
+        }
+
     }
 
     "find notifications with a given status" in new Setup {
