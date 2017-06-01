@@ -2,7 +2,7 @@
 
 @if(templateId == "NGC_001"){
     {
-      "id": "NGC-001",
+      "id": "NGC_001",
       "notification": "This is a push notification that does nothing else other than show you this text."
     }
 } else {
@@ -14,7 +14,7 @@
             }
         } else {
             {
-              "id": "NGC-002",
+              "id": "NGC_002",
               "notification": "@fullName, HMRC has sent you a message",
               "message": {
                   "subject": "Your agent has been authorised",
@@ -34,7 +34,7 @@
                   }
               } else {
                   {
-                    "id": "NGC-003",
+                    "id": "NGC_003",
                     "notification": "@title @firstName @lastName, HMRC has sent you a message",
                     "message": {
                       "subject": "You need to authorise your agent",

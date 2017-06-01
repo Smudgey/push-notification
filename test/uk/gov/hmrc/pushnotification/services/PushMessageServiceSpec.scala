@@ -64,7 +64,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     val someTemplateId = "NGC_002"
     val someCallbackUrl = "http://callback.url"
-    val someParams = Map("fullName" -> "Clark Kent", "agent" -> "James 007 Bond", "callbackUrl" -> "http://callback.url","messageId" -> someMessageId)
+    val someParams = Map("fullName" -> "Clark Kent", "agent" -> "James 007 Bond", "callbackUrl" -> "http://callback.url")
 
     val endpointsWithOs = Map("foo" -> "windows", "bar" -> "android", "baz" -> "ios")
     val someTemplate = Template(someTemplateId, someParams)
@@ -75,7 +75,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val someResponses = Map("yes" -> "Yes", "no" -> "No")
     val someUrl = "http://over.yonder/call/back"
 
-    val somePushMessage = PushMessage(someSubject, someBody, someCallbackUrl, someResponses, someMessageId )
+    val somePushMessage = PushMessage(someSubject, someBody, someCallbackUrl, someResponses, someMessageId)
     val savedMessage = PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someUrl)
   }
 
@@ -136,7 +136,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService sendTemplateMessage" should {
-    "return a message id given a valid template name and an authority with endpoints" in new Success {
+    "return a message id given a valid template name and an authority with endpoints" in new Success with GUIDUtil {
       val notificationCaptor: ArgumentCaptor[Notification] = ArgumentCaptor.forClass(classOf[Notification])
 
       val result: Option[String] = await(service.sendTemplateMessage(someTemplate)(hc, Option(someAuth)))
@@ -214,35 +214,35 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       message.responses shouldBe someResponses
     }
 
-     "save the answer with the callback url and return true given a valid message id and answer" in new Success {
-       val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-       val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
-       val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
-       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
-       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
+    "save the answer with the callback url and return true given a valid message id and answer" in new Success {
+      val idCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+      val urlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+      val statusCaptor: ArgumentCaptor[PushMessageStatus] = ArgumentCaptor.forClass(classOf[PushMessageStatus])
+      val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
+      val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-       val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
+      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
 
-       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
+      verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
-       idCaptor.getValue shouldBe someMessageId
-       urlCaptor.getValue shouldBe someUrl
-       statusCaptor.getValue shouldBe PushMessageStatus.Answer
-       answerCaptor.getValue shouldBe Some("yes")
-       attemptCaptor.getValue shouldBe 0
+      idCaptor.getValue shouldBe someMessageId
+      urlCaptor.getValue shouldBe someUrl
+      statusCaptor.getValue shouldBe PushMessageStatus.Answer
+      answerCaptor.getValue shouldBe Some("yes")
+      attemptCaptor.getValue shouldBe 0
 
-       result shouldBe true
-     }
+      result shouldBe true
+    }
 
-     "not save anything and return true given a valid message id and duplicate status" in new Duplicate {
-       val (initial, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+    "not save anything and return true given a valid message id and duplicate status" in new Duplicate {
+      val (initial, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
-       initial shouldBe true
+      initial shouldBe true
 
-       val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
-       result shouldBe false
-     }
+      result shouldBe false
+    }
 
     "return false given an invalid message id" in new Invalid {
       val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
@@ -292,8 +292,9 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
     }
   }
+}
 
-
+trait GUIDUtil {
   class GUIDMatcher extends Matcher[String] {
     def apply(maybeGuid: String): MatchResult = {
       val result = try {

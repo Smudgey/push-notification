@@ -16,6 +16,8 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
+import java.util.UUID
+
 import play.api.libs.json.{JsSuccess, Json}
 import twirl.TwirlException
 import uk.gov.hmrc.play.http.{BadRequestException, InternalServerException}
@@ -23,7 +25,7 @@ import uk.gov.hmrc.play.http.{BadRequestException, InternalServerException}
 case class Template(id: String, params: Map[String, String] = Map.empty) {
 
   def complete(): NotificationMessage = {
-    val template = twirl.txt.templates.render(id, getParamById("messageId"),getParamById("title"), getParamById("firstName"),
+    val template = twirl.txt.templates.render(id, UUID.randomUUID().toString,getParamById("title"), getParamById("firstName"),
                                                   getParamById("lastName"), getParamById("fullName"),
                                                   getParamById("agent"), getParamById("callbackUrl"))
     val result = Json.parse(template.toString())
@@ -41,7 +43,7 @@ case class Template(id: String, params: Map[String, String] = Map.empty) {
   }
 
   private def getParamById(key: String): String = {
-    params.get(key).getOrElse("")
+    params.getOrElse(key, "")
   }
 
 }
