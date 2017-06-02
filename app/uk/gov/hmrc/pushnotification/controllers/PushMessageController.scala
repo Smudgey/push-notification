@@ -21,7 +21,7 @@ import javax.inject.{Inject, Singleton}
 import com.google.inject.ImplementedBy
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
-import play.api.mvc.{Action, BodyParsers, Result}
+import play.api.mvc._
 import uk.gov.hmrc.api.controllers.HeaderValidator
 import uk.gov.hmrc.play.http.HeaderCarrier
 import uk.gov.hmrc.play.microservice.controller.BaseController
@@ -30,7 +30,6 @@ import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answe
 import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.services.PushMessageServiceApi
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 
 @ImplementedBy(classOf[PushMessageController])
@@ -40,13 +39,14 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
   def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
 
   def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
+
+  def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[JsValue]
 }
 
 @Singleton
 class PushMessageController @Inject()(service: PushMessageServiceApi, accessControl: AccountAccessControlWithHeaderCheck) extends PushMessageControllerApi {
   override implicit val ec: ExecutionContext = ExecutionContext.global
 
-  // TODO...Drop API gateway restrictions
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
     implicit authenticated =>
       implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
@@ -110,5 +110,22 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
               case None => Future.successful(BadRequest)
             }
         )
+    }
+
+  override def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[JsValue] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+      implicit request =>
+
+        errorWrapper {
+          def getAuthId = request.authority.fold(throw new Exception("no auth!")){auth => auth.authInternalId}
+          val maybeMessages: Future[Option[PushMessage]] = for (
+            message <- service.getMessageFromMessageId(messageId, getAuthId);
+            _ <- service.respondToMessage(messageId, Acknowledge, None)
+          ) yield message
+
+          maybeMessages.map {
+            _.fold(NotFound("Message Id unknown!")) { found => Ok(Json.toJson(found)) }
+          }
+        }
     }
 }

@@ -120,7 +120,31 @@ class PushMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       val savedMessage = saved(1).right.get
 
-      val result = await(repository.find(savedMessage.messageId))
+      val result = await(repository.find(savedMessage.messageId, None))
+
+      val foundMessage = result.getOrElse(fail("should have found the saved message"))
+
+      foundMessage.authId shouldBe savedMessage.authId
+      foundMessage.messageId shouldBe savedMessage.messageId
+      foundMessage.subject shouldBe savedMessage.subject
+      foundMessage.body shouldBe savedMessage.body
+      foundMessage.callbackUrl shouldBe savedMessage.callbackUrl
+      foundMessage.responses shouldBe savedMessage.responses
+    }
+
+    "find a message given a message id and auth id" in new Setup {
+      val saved: Seq[Either[String, PushMessagePersist]] =
+        Seq(
+          await(repository.save(someAuthId, PushMessage(subject = someSubject, body = someBody, callbackUrl = someUrl, responses = someResponses))),
+          await(repository.save(otherAuthId, PushMessage(subject = someSubject, body = someBody, callbackUrl = otherUrl, responses = someResponses))),
+          await(repository.save(someAuthId, PushMessage(subject = otherSubject, body = otherBody, callbackUrl = someUrl, responses = otherResponses)))
+        )
+
+      saved.count(_.isRight) shouldBe 3
+
+      val savedMessage = saved(1).right.get
+
+      val result = await(repository.find(savedMessage.messageId, Some(otherAuthId)))
 
       val foundMessage = result.getOrElse(fail("should have found the saved message"))
 
@@ -142,7 +166,7 @@ class PushMessageMongoRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       saved.count(_.isRight) shouldBe 3
 
-      val result = await(repository.find("does-not-exist-message-id"))
+      val result = await(repository.find("does-not-exist-message-id", None))
 
       result.isDefined shouldBe false
     }

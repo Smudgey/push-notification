@@ -39,6 +39,8 @@ trait PushMessageServiceApi extends Auditor {
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
 
   def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
+
+  def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]]
 }
 
 @Singleton
@@ -59,9 +61,28 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     }
   }
 
+  override def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]] = {
+
+    def findCallback(message:Option[PushMessage]) = {
+      val notFound:Option[PushMessage] = None
+      message.fold(Future.successful(notFound)) { found =>
+        callbackRepository.findLatest(messageId).map {
+          case f@Some(callback) if Seq(Acknowledge, Answer).contains(callback.status) => message
+          case _ => None
+        }
+      }
+    }
+
+    for (
+      message <- messageRepository.find(messageId, Some(authId)).map(_.map(pm =>
+                    PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
+      result <- findCallback(message)
+    ) yield result
+  }
+
   override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])] = {
     for (
-      message: Option[PushMessage] <- messageRepository.find(messageId).map(_.map(pm =>
+      message: Option[PushMessage] <- messageRepository.find(messageId, None).map(_.map(pm =>
         PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
       saved <- message.map { msg =>
         if (!answer.forall { a => msg.responses.count(_._1 == a) > 0 }) {
@@ -75,7 +96,8 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     ) yield (saved, message)
   }
 
-  private def createNotifications(authId: String, endpoints: Map[String, String], message: String, messageId: Option[String]) = {
+  // todo: check if sequence is required?
+  private def createNotifications(authId: String, endpoints: Map[String, String], message: String, messageId: Option[String]): Future[Seq[String]] = {
     Future.sequence(endpoints.map { endpointAndOs =>
       val notification = Notification(endpoint = endpointAndOs._1, content = message, messageId = messageId, os = endpointAndOs._2)
       notificationRepository.save(authId, notification).map {
