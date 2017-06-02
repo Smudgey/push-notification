@@ -178,6 +178,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     val notificationId = notification.notificationId.fold(BSONDocument.empty) { id =>
       BSONDocument("$setOnInsert" -> BSONDocument("notificationId" -> id))
     }
+    val messageId = notification.messageId.fold(BSONDocument.empty) { id =>
+      BSONDocument("$setOnInsert" -> BSONDocument("messageId" -> id))
+    }
     val coreData = BSONDocument(
       "$setOnInsert" -> BSONDocument("os" -> notification.os),
       "$setOnInsert" -> BSONDocument("authId" -> authId),
@@ -189,7 +192,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       "$set" -> BSONDocument("status" -> notification.status.toString),
       "$set" -> BSONDocument("updated" -> BSONDateTime(DateTimeUtils.now.getMillis))
     )
-    notificationId ++ coreData
+    notificationId ++ messageId ++ coreData
   }
 }
 

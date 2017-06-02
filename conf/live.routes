@@ -11,3 +11,4 @@ POST   /callbacks/status         @uk.gov.hmrc.pushnotification.controllers.Callb
 GET    /notifications/unsent        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getQueuedNotifications
 GET    /notifications/timedout      @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getTimedOutNotifications
 POST   /notifications/status        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()
+

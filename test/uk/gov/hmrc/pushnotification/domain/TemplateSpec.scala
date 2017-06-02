@@ -16,10 +16,9 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
-import java.util.UUID
-
 import uk.gov.hmrc.play.http.BadRequestException
 import uk.gov.hmrc.play.test.UnitSpec
+import uk.gov.hmrc.pushnotification.services.GUIDUtil
 
 class TemplateSpec extends UnitSpec {
 
@@ -32,14 +31,13 @@ class TemplateSpec extends UnitSpec {
       result.message shouldBe None
     }
 
-    "return a completed template populated with params with a message" in {
+    "return a completed template populated with params with a message" in new GUIDUtil {
       val title = "Mr"
       val firstName = "Peter"
       val lastName = "Parker"
       val agent = "Agent 47"
       val callbackUrl = "http://callback.url"
-      val messageId = UUID.randomUUID().toString
-      val result = Template("NGC_003", Map("title" -> title, "firstName" -> firstName, "lastName" -> lastName, "agent" -> agent, "callbackUrl" -> callbackUrl, "messageId" -> messageId)).complete()
+      val result: NotificationMessage = Template("NGC_003", Map("title" -> title, "firstName" -> firstName, "lastName" -> lastName, "agent" -> agent, "callbackUrl" -> callbackUrl)).complete()
 
       result.notification.contains(title) shouldBe true
       result.notification.contains(firstName) shouldBe true
@@ -48,7 +46,15 @@ class TemplateSpec extends UnitSpec {
       result.message.get.subject shouldBe "You need to authorise your agent"
       result.message.get.body.contains(agent) shouldBe true
       result.message.get.callbackUrl shouldBe callbackUrl
-      result.message.get.messageId shouldBe messageId
+      result.message.get.messageId should BeGuid
+    }
+
+    "ignore a messageId parameter passed by the client" in {
+      val messageId = "foo"
+
+      val result = Template("NGC_002", Map("fullName" -> "foo", "agent" -> "bar", "callbackUrl" -> "/baz", "messageId" -> messageId)).complete()
+
+      result.message.get.messageId should not be messageId
     }
 
     "throw a BadRequestException given a template without required parameters" in {
