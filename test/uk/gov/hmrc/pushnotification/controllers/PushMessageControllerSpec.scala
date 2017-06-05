@@ -69,6 +69,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     val acknowledgeRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId" }"""), POST)
     val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
+    val emptyRequest = fakeRequest(Json.parse("""{}"""), POST).withHeaders(acceptHeader)
 
     def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET).withHeaders(acceptHeader)
 
@@ -301,5 +302,50 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
     }
   }
+
+  "PushMessageController getMessageFromMessageId" should {
+    "return unanswered message for a given authId" in new Success {
+      when(mockService.getMessageFromMessageId(any[String], any[String])).thenReturn(Future(Some(someMessage)))
+
+      val result: Result = await(controller.getMessageFromMessageId(someMessageId, None)(emptyRequest))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """{
+          |  "id":"msg-some-id",
+          |  "subject": "snarkle",
+          |  "body": "Foo, bar baz!",
+          |  "responses": {
+          |    "yes": "Sure",
+          |    "no": "Nope"
+          |  }
+          |}""".stripMargin)
+    }
+
+    "return no message when no messages are associated with authId" in new Success {
+      when(mockService.getMessageFromMessageId(any[String], any[String])).thenReturn(Future(None))
+
+      val result: Result = await(controller.getMessageFromMessageId(otherMessageId, None)(emptyRequest))
+
+      status(result) shouldBe 404
+    }
+
+    "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
+      when(mockService.getMessageFromMessageId(any[String], any[String])).thenReturn(Future(throw new ServiceUnavailableException("service unavailable")))
+
+      val result: Result = await(controller.getMessageFromMessageId(otherMessageId, None)(emptyRequest))
+
+      status(result) shouldBe 500
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
+    }
+
+    "return 401 result when authority record does not contain an internal-id" in new AuthFailure {
+      val result: Result = await(controller.getMessageFromMessageId(someMessageId, None)(emptyRequest))
+
+      status(result) shouldBe 401
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
+    }
+  }
+
 }
 

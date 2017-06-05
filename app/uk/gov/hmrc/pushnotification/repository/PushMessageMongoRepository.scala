@@ -20,9 +20,9 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, Json}
-import reactivemongo.api.{Collection, CursorProducer, DB, ReadPreference}
+import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.api.indexes.{Index, IndexType}
-import reactivemongo.bson.{BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.bson.{BSONArray, BSONDocument, BSONDateTime, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessage
@@ -69,10 +69,13 @@ class PushMessageMongoRepository @Inject()(mongo: DB)
     }
   }
 
-  override def find(messageId: String): Future[Option[PushMessagePersist]] =
+  override def find(messageId: String, authId:Option[String]): Future[Option[PushMessagePersist]] =
     collection.
-      find(Json.obj("messageId" -> messageId)).
-      one[PushMessagePersist](ReadPreference.primaryPreferred)
+      find(
+        BSONDocument("$and" -> BSONArray(
+          BSONDocument("messageId" -> messageId) ++
+          authId.fold(BSONDocument.empty){found => BSONDocument("authId" -> found)}))).
+        one[PushMessagePersist](ReadPreference.primaryPreferred)
 
   def findDocumentByMessageId(messageId: String): BSONDocument = BSONDocument("messageId" -> messageId)
 
@@ -99,6 +102,6 @@ class PushMessageMongoRepository @Inject()(mongo: DB)
 @ImplementedBy(classOf[PushMessageMongoRepository])
 trait PushMessageRepositoryApi {
   def save(authId: String, message: PushMessage): Future[Either[String, PushMessagePersist]]
-  def find(messageId: String): Future[Option[PushMessagePersist]]
+  def find(messageId: String, authId:Option[String]): Future[Option[PushMessagePersist]]
   def findByAuthority(authId: String): Future[Seq[PushMessagePersist]]
 }

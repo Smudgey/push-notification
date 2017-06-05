@@ -15,6 +15,7 @@ The following endpoints are exposed by this service:
 | ```/push-notification/messages/:id/status``` | POST | Respond to a message. [More...](docs/respond.md)  |
 | ```//push-notification/notifications/unsent``` | GET | Retrieve queued notifications. [More...](docs/queued.md) |
 | ```//push-notification/notifications/status``` | POST | Update the status of notifications. [More...](docs/update.md) |
+| ```//push-notification/messages/:id``` | POST | Retrieve message associated with Id and update state to answer. [More...](docs/getmessage.md) |
 
 ### License
 
