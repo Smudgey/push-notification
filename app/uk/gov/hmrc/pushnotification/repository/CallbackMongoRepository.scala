@@ -83,11 +83,10 @@ class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetr
         }
       }
 
-  override def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]] =
-    collection.
-      find(Json.obj("messageId" -> messageId)).
-      sort(Json.obj("status" -> -1)).
-      one[PushMessageCallbackPersist](ReadPreference.primaryPreferred)
+  override def findLatest(messageIds: List[String]): Future[List[PushMessageCallbackPersist]] =
+    collection.find(Json.obj("messageId" -> Json.obj("$in" -> messageIds)))
+      .sort(Json.obj("status" -> -1))
+      .cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).collect[List]()
 
   override def findByStatus(messageId: String, status: PushMessageStatus): Future[Option[PushMessageCallbackPersist]] =
     collection.
@@ -205,7 +204,7 @@ trait CallbackRepositoryApi {
 
   def update(result: CallbackResult): Future[Either[String, PushMessageCallbackPersist]]
 
-  def findLatest(messageId: String): Future[Option[PushMessageCallbackPersist]]
+  def findLatest(messageIds: List[String]): Future[List[PushMessageCallbackPersist]]
 
   def findByStatus(messageId: String, status: PushMessageStatus): Future[Option[PushMessageCallbackPersist]]
 

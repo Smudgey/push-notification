@@ -112,9 +112,9 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
-      doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
-      }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
+      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
+        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
+      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
     }
 
     def primeFindForMessageAndAuthId(messageId:String, authId:String, response:Option[PushMessagePersist]) = {
@@ -292,9 +292,9 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "not return messages if no latest callback" in new Success {
-      doAnswer(new Answer[Future[Option[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessageCallbackPersist]] = successful(None)
-      }).when(mockCallbackRepository).findLatest(savedMessage.messageId)
+      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
+        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List.empty)
+      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
 
       await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
     }

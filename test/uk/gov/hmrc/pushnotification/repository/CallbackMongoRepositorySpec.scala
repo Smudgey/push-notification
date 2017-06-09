@@ -112,18 +112,18 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       saved.count(_.isRight) shouldBe 5
 
-      val someResult: Option[PushMessageCallbackPersist] = await(repository.findLatest(someMessageId))
+      val someResult: List[PushMessageCallbackPersist] = await(repository.findLatest(List(someMessageId)))
 
-      val someActual: PushMessageCallbackPersist = someResult.getOrElse(fail("should have found a callback status"))
+      val someActual: PushMessageCallbackPersist = someResult.headOption.getOrElse(fail("should have found a callback status"))
 
       someActual.messageId shouldBe someMessageId
       someActual.callbackUrl shouldBe someUrl
       someActual.status shouldBe PushMessageStatus.Answer
       someActual.answer shouldBe None
 
-      val otherResult: Option[PushMessageCallbackPersist] = await(repository.findLatest(otherMessageId))
+      val otherResult: List[PushMessageCallbackPersist] = await(repository.findLatest(List(otherMessageId)))
 
-      val otherActual: PushMessageCallbackPersist = otherResult.getOrElse(fail("should have found a callback status"))
+      val otherActual: PushMessageCallbackPersist = otherResult.headOption.getOrElse(fail("should have found a callback status"))
 
       otherActual.messageId shouldBe otherMessageId
       otherActual.callbackUrl shouldBe otherUrl
@@ -141,9 +141,9 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       saved.count(_.isRight) shouldBe 3
 
-      val result: Option[PushMessageCallbackPersist] = await(repository.findLatest("does-not-exist-message-id"))
+      val result: List[PushMessageCallbackPersist] = await(repository.findLatest(List("does-not-exist-message-id")))
 
-      result.isDefined shouldBe false
+      result shouldBe empty
     }
 
     "find a callback with a specific messageId and status" in new Setup {

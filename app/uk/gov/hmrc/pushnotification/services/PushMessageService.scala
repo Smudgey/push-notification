@@ -63,11 +63,11 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
 
   override def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]] = {
 
-    def findCallback(message:Option[PushMessage]) = {
+    def findCallback(message:Option[PushMessage]): Future[Option[PushMessage]] = {
       val notFound:Option[PushMessage] = None
       message.fold(Future.successful(notFound)) { found =>
-        callbackRepository.findLatest(messageId).map {
-          case f@Some(callback) if Seq(Acknowledge, Answer).contains(callback.status) => message
+        callbackRepository.findLatest(List(messageId)).map {
+          case (callback :: _) if Seq(Acknowledge, Answer).contains(callback.status) => message
           case _ => None
         }
       }
@@ -123,10 +123,10 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
   private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
     for {
       messages <- messageRepository.findByAuthority(authId)
-      callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(message.messageId))).map(_.zip(messages))
+      callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(List(message.messageId)))).map(_.zip(messages))
     } yield
       callbackMessagesPairs.flatMap {
-        case (Some(PushMessageCallbackPersist(_, _, _, status, _, _, _)), message) if Seq(Acknowledge, Answer).contains(status) =>
+        case (PushMessageCallbackPersist(_, _, _, status, _, _, _) :: _, message) if Seq(Acknowledge, Answer).contains(status) =>
           Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
         case _ => None
       }
