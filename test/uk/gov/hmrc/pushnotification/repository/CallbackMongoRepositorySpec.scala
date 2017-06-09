@@ -131,6 +131,17 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       otherActual.answer shouldBe someAnswer
     }
 
+    "find the latest for multiple message ids" in new Setup {
+      val saved: Seq[Either[String, Boolean]] =
+        Seq(
+          await(repository.save(someMessageId, someUrl, Acknowledge, None)),
+          await(repository.save(otherMessageId, otherUrl, Acknowledge, None))
+        )
+
+      val results: List[PushMessageCallbackPersist] = await(repository.findLatest(List(someMessageId, otherMessageId, "UNKOWN_MESSAGE_ID")))
+      results.map(_.messageId) shouldBe List(someMessageId, otherMessageId)
+    }
+
     "not find a status given a non-existent message id" in new Setup {
       val saved: Seq[Either[String, Boolean]] =
         Seq(
