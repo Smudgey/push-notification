@@ -27,6 +27,7 @@ import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answe
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository._
 
+import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -123,10 +124,10 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
   private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
     for {
       messages <- messageRepository.findByAuthority(authId)
-      callbackMessagesPairs <- Future.sequence(messages.map(message => callbackRepository.findLatest(List(message.messageId)))).map(_.zip(messages))
+      callbackMessagesPairs: immutable.Seq[(PushMessageCallbackPersist, PushMessagePersist)] <- callbackRepository.findLatest(messages.map(_.messageId).toList).map(_.zip(messages))
     } yield
       callbackMessagesPairs.flatMap {
-        case (PushMessageCallbackPersist(_, _, _, status, _, _, _) :: _, message) if Seq(Acknowledge, Answer).contains(status) =>
+        case (PushMessageCallbackPersist(_, _, _, status, _, _, _), message) if Seq(Acknowledge, Answer).contains(status) =>
           Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
         case _ => None
       }
