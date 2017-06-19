@@ -54,11 +54,11 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
     val controller = new PushMessageController(mockService, testAccessControl)
 
-    val someAuthority = Authority(Nino("CS700100A"), ConfidenceLevel.L200, "int-id-123")
+    val someAuthId = "int-id-123"
+    val someAuthority = Authority(Nino("CS700100A"), ConfidenceLevel.L200, someAuthId)
 
     val someMessageId = "msg-some-id"
     val otherMessageId = "msg-other-id"
-    val someJourneyId = "journey-id"
 
     val acceptHeader = "Accept" -> "application/vnd.hmrc.1.0+json"
     val template = Template("NGC_002", Map("fullName" -> "Inspector Gadget", "agent" -> "Agent 47"))
@@ -71,8 +71,6 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     val answerRequest = fakeRequest(Json.parse(s"""{ "messageId" : "$someMessageId", "answer" : "yes" }"""), POST)
     val emptyRequest = fakeRequest(Json.parse("""{}"""), POST).withHeaders(acceptHeader)
 
-    def currentMessageRequest(journeyId: String = someJourneyId) = fakeRequest(Json.parse(s"""{ "journeyId" : "$journeyId" }"""), GET).withHeaders(acceptHeader)
-
     def fakeRequest(body: JsValue, httpMethod: String) = FakeRequest(httpMethod, "url").withBody(body)
       .withHeaders("Content-Type" -> "application/json")
 
@@ -84,7 +82,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
     when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, Some(someMessage))))
-    when(mockService.getCurrentMessages(someJourneyId)).thenReturn(Future(Seq(someMessage, someOtherMessage)))
+    when(mockService.getCurrentMessages(someAuthId)).thenReturn(Future(Seq(someMessage, someOtherMessage)))
   }
 
   private trait Duplicate extends Setup {
@@ -242,7 +240,7 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
 
   "PushMessageController getCurrentMessages" should {
     "return unanswered messages for a given authId" in new Success {
-      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+      val result: Result = await(controller.getCurrentMessages()(emptyRequest))
 
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
@@ -273,7 +271,9 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     }
 
     "return no messages for a when none associated with authId" in new Success {
-      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest("some-auth-id-without-messages")))
+      when(mockService.getCurrentMessages(someAuthId)).thenReturn(Future(Seq.empty))
+
+      val result: Result = await(controller.getCurrentMessages()(emptyRequest))
 
       status(result) shouldBe 200
       jsonBodyOf(result) shouldBe Json.parse(
@@ -282,21 +282,15 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
           |}""".stripMargin)
     }
 
-    "return 400 bad request given an invalid request" in new Success {
-      val result: Result = await(controller.getCurrentMessages()(invalidRequest))
-
-      status(result) shouldBe 400
-    }
-
     "return 500 result when bad service unavailable exception is thrown by service" in new DownstreamFailure {
-      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+      val result: Result = await(controller.getCurrentMessages()(emptyRequest))
 
       status(result) shouldBe 500
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"INTERNAL_SERVER_ERROR","message":"Internal server error"}""")
     }
 
     "return 401 result when authority record does not contain an internal-id" in new AuthFailure {
-      val result: Result = await(controller.getCurrentMessages()(currentMessageRequest()))
+      val result: Result = await(controller.getCurrentMessages()(emptyRequest))
 
       status(result) shouldBe 401
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"UNAUTHORIZED","message":"Account id error"}""")
