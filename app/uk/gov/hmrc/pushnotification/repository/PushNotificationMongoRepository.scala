@@ -27,7 +27,7 @@ import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{queued, sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{delivered, failed, queued, sent}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
@@ -135,6 +135,24 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     processBatch(timedOutNotifications)
   }
 
+  override def permanentlyFail(): Future[Int] = {
+    def maxAttemptsReached = BSONDocument(
+      "$and" -> BSONArray(
+        BSONDocument("status" -> BSONDocument("$nin" -> BSONArray(delivered, failed))),
+        BSONDocument("attempts" -> BSONDocument("$gte" -> maxAttempts))
+      )
+    )
+
+    def setFailed = BSONDocument(
+      "$set" -> BSONDocument(
+        "updated" -> BSONDateTime(DateTimeUtils.now.getMillis),
+        "status" -> failed
+      )
+    )
+
+    collection.update(maxAttemptsReached, setFailed, upsert = false, multi = true).map(_.nModified)
+  }
+
   def processBatch(batch: Future[List[NotificationPersist]]) : Future[Seq[NotificationPersist]] = {
     def setSent(batch: List[NotificationPersist]) = {
       collection.update(
@@ -209,6 +227,8 @@ trait PushNotificationRepositoryApi {
   def getQueuedNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
 
   def getTimedOutNotifications(timeoutMilliseconds: Long, maxRows: Int): Future[Seq[NotificationPersist]]
+
+  def permanentlyFail(): Future[Int]
 }
 
 @Singleton

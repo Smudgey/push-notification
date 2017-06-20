@@ -28,6 +28,7 @@ object NotificationStatus {
   val sent = "sent"
   val delivered = "delivered"
   val disabled = "disabled"
+  val failed = "permanently-failed"
 
   case object Queued extends NotificationStatus {
     override def toString: String = queued
@@ -45,12 +46,17 @@ object NotificationStatus {
     override def toString: String = disabled
   }
 
+  case object PermanentlyFailed extends NotificationStatus {
+    override def toString: String = failed
+  }
+
   val reads: Reads[NotificationStatus] = new Reads[NotificationStatus] {
     override def reads(json: JsValue): JsResult[NotificationStatus] = json match {
       case JsString(NotificationStatus.queued) => JsSuccess(Queued)
       case JsString(NotificationStatus.sent) => JsSuccess(Sent)
       case JsString(NotificationStatus.delivered) => JsSuccess(Delivered)
       case JsString(NotificationStatus.disabled) => JsSuccess(Disabled)
+      case JsString(NotificationStatus.failed) => JsSuccess(PermanentlyFailed)
       case _ => JsError(s"Failed to resolve $json")
     }
   }
@@ -61,6 +67,7 @@ object NotificationStatus {
       case Sent => JsString(sent)
       case Delivered => JsString(delivered)
       case Disabled => JsString(disabled)
+      case PermanentlyFailed => JsString(failed)
     }
   }
 
