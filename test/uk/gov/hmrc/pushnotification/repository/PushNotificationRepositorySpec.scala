@@ -296,13 +296,13 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
         } shouldBe true
       }
 
-      val permanentlyFailed: Int = await(repository.permanentlyFail())
+      val permanentlyFailed: Option[Int] = await(repository.permanentlyFail())
 
-      val remainingFailed: Int = await(repository.permanentlyFail())
+      val remainingFailed: Option[Int] = await(repository.permanentlyFail())
 
-      permanentlyFailed shouldBe 2
+      permanentlyFailed shouldBe Some(2)
 
-      remainingFailed shouldBe 0
+      remainingFailed shouldBe None
     }
 
     "return only max-limit number of notifications when there are more than max-limit queued notifications" in new Setup {

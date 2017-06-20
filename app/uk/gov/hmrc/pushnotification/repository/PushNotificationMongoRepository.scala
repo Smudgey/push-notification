@@ -135,7 +135,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     processBatch(timedOutNotifications)
   }
 
-  override def permanentlyFail(): Future[Int] = {
+  override def permanentlyFail(): Future[Option[Int]] = {
     def maxAttemptsReached = BSONDocument(
       "$and" -> BSONArray(
         BSONDocument("status" -> BSONDocument("$nin" -> BSONArray(delivered, failed))),
@@ -150,7 +150,8 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       )
     )
 
-    collection.update(maxAttemptsReached, setFailed, upsert = false, multi = true).map(_.nModified)
+    collection.update(maxAttemptsReached, setFailed, upsert = false, multi = true)
+      .map(r => if (r.nModified > 0) Some(r.nModified) else None)
   }
 
   def processBatch(batch: Future[List[NotificationPersist]]) : Future[Seq[NotificationPersist]] = {
@@ -228,7 +229,7 @@ trait PushNotificationRepositoryApi {
 
   def getTimedOutNotifications(timeoutMilliseconds: Long, maxRows: Int): Future[Seq[NotificationPersist]]
 
-  def permanentlyFail(): Future[Int]
+  def permanentlyFail(): Future[Option[Int]]
 }
 
 @Singleton

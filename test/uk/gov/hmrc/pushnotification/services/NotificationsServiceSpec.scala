@@ -62,12 +62,14 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
 
   private trait Success extends LockOK {
     doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
+    doReturn(successful(Some(5)), Nil: _* ).when(notificationRepository).permanentlyFail()
     doReturn(successful(Seq(otherPersisted, somePersisted)), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
     doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(someNotificationId, Delivered)))
     doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(otherNotificationId, Queued)))
   }
 
   private trait Failed extends LockOK {
+    doReturn(successful(None), Nil: _* ).when(notificationRepository).permanentlyFail()
     doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
     doReturn(failed(new Exception("SPLAT!")), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
     doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[NotificationResult]())
@@ -109,7 +111,7 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
         await(service.getTimedOutNotifications)
       }
 
-      result.getMessage shouldBe "Unable to retrieve timed-out notifications"
+      result.getMessage shouldBe "Unable to retrieve notifications"
     }
   }
 
