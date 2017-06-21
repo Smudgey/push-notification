@@ -27,7 +27,7 @@ import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{queued, sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{PermanentlyFailed, delivered, failed, queued, sent}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
@@ -135,6 +135,18 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
     processBatch(timedOutNotifications)
   }
 
+  override def permanentlyFail(): Future[Option[Int]] = {
+    def maxAttemptsReached = BSONDocument(
+      "$and" -> BSONArray(
+        BSONDocument("status" -> BSONDocument("$nin" -> BSONArray(delivered, failed))),
+        BSONDocument("attempts" -> BSONDocument("$gte" -> maxAttempts))
+      )
+    )
+
+    collection.update(maxAttemptsReached, updateStatus(PermanentlyFailed), upsert = false, multi = true)
+      .map(r => if (r.nModified > 0) Some(r.nModified) else None)
+  }
+
   def processBatch(batch: Future[List[NotificationPersist]]) : Future[Seq[NotificationPersist]] = {
     def setSent(batch: List[NotificationPersist]) = {
       collection.update(
@@ -172,7 +184,12 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
 
   def findNotificationByNotificationId(notificationId: Option[String]) = BSONDocument("notificationId" -> notificationId.getOrElse("-1"))
 
-  def updateStatus(status: NotificationStatus) = BSONDocument("$set" -> BSONDocument("status" -> status.toString))
+  def updateStatus(status: NotificationStatus) = BSONDocument(
+    "$set" -> BSONDocument(
+      "status" -> status.toString,
+      "updated" -> BSONDateTime(DateTimeUtils.now.getMillis)
+    )
+  )
 
   def insertNotification(authId: String, notification: Notification): BSONDocument = {
     val notificationId = notification.notificationId.fold(BSONDocument.empty) { id =>
@@ -209,6 +226,8 @@ trait PushNotificationRepositoryApi {
   def getQueuedNotifications(maxRows: Int): Future[Seq[NotificationPersist]]
 
   def getTimedOutNotifications(timeoutMilliseconds: Long, maxRows: Int): Future[Seq[NotificationPersist]]
+
+  def permanentlyFail(): Future[Option[Int]]
 }
 
 @Singleton
