@@ -27,7 +27,7 @@ import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{delivered, failed, queued, sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{PermanentlyFailed, delivered, failed, queued, sent}
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.time.DateTimeUtils
 
@@ -143,14 +143,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
       )
     )
 
-    def setFailed = BSONDocument(
-      "$set" -> BSONDocument(
-        "updated" -> BSONDateTime(DateTimeUtils.now.getMillis),
-        "status" -> failed
-      )
-    )
-
-    collection.update(maxAttemptsReached, setFailed, upsert = false, multi = true)
+    collection.update(maxAttemptsReached, updateStatus(PermanentlyFailed), upsert = false, multi = true)
       .map(r => if (r.nModified > 0) Some(r.nModified) else None)
   }
 
@@ -191,7 +184,12 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
 
   def findNotificationByNotificationId(notificationId: Option[String]) = BSONDocument("notificationId" -> notificationId.getOrElse("-1"))
 
-  def updateStatus(status: NotificationStatus) = BSONDocument("$set" -> BSONDocument("status" -> status.toString))
+  def updateStatus(status: NotificationStatus) = BSONDocument(
+    "$set" -> BSONDocument(
+      "status" -> status.toString,
+      "updated" -> BSONDateTime(DateTimeUtils.now.getMillis)
+    )
+  )
 
   def insertNotification(authId: String, notification: Notification): BSONDocument = {
     val notificationId = notification.notificationId.fold(BSONDocument.empty) { id =>
