@@ -29,9 +29,15 @@ import scala.concurrent.ExecutionContext
 @Singleton
 class TestOnlyController @Inject()(notificationRepository: PushNotificationMongoRepositoryTest) extends BaseController with ErrorHandling {
   implicit val ec: ExecutionContext = ExecutionContext.global
+  implicit val oidFormat = ReactiveMongoFormats.objectIdFormats
+  implicit val format = Json.format[NotificationPersist]
 
   def dropNotificationMongo() = Action.async {
     notificationRepository.removeAllRecords().map(_ => Ok)
+  }
+
+  def findByInternalId(internalId:String) = Action.async {
+    notificationRepository.findByInternalId(internalId).map(res => Ok(Json.toJson(res)))
   }
 
   def findByEndpoint(token:String, internalId:String) = Action.async {
