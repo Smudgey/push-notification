@@ -223,4 +223,12 @@ class PushNotificationMongoRepositoryTest @Inject() (mongo: DB, @Named("sendNoti
       find(BSONDocument("authId" -> authId) ++ BSONDocument("endpoint" -> endpoint))
       .one[NotificationPersist](ReadPreference.primaryPreferred)
   }
+
+  def findByInternalId(authId:String): Future[List[NotificationPersist]] = {
+    collection
+      .find(BSONDocument("authId" -> authId))
+      .sort(Json.obj("endpoint" -> JsNumber(1), "created" -> JsNumber(-1)))
+      .cursor[NotificationPersist](ReadPreference.primaryPreferred)
+      .collect[List]()
+  }
 }
