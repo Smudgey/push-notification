@@ -25,7 +25,7 @@ import reactivemongo.core.errors.DatabaseException
 import uk.gov.hmrc.mongo.MongoSpecSupport
 import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.domain.Notification
-import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Queued, Sent}
+import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, PermanentlyFailed, Queued, Sent}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -182,12 +182,12 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       val existing: NotificationPersist = saved(1)
 
-      val updated: Either[String, NotificationPersist] = await(repository.update(existing.notificationId, Disabled))
+      val updated: Either[String, NotificationPersist] = await(repository.update(existing.notificationId, PermanentlyFailed))
 
       updated match {
         case Right(actual) =>
           actual.notificationId shouldBe existing.notificationId
-          actual.status shouldBe Disabled
+          actual.status shouldBe PermanentlyFailed
           actual.attempts shouldBe 0
         case Left(e) => fail(e)
       }
@@ -275,6 +275,34 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       val finallyQueued: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
 
       finallyQueued.size shouldBe 0
+    }
+
+    "permanently fail notifications that have exceeded the maximum number of attempts" in new Setup {
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
+      await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
+
+      val initiallyQueued: Seq[NotificationPersist] = await(repository.findByStatus(Queued))
+
+      initiallyQueued.size shouldBe 2
+
+      for (_ <- 1 to maxRetryAttempts + 1) {
+        val someQueued: Seq[NotificationPersist] = await(repository.getQueuedNotifications(100))
+
+        someQueued.forall { n =>
+          await(repository.update(n.notificationId, Queued)) match {
+            case Right(_) => true
+            case _ => false
+          }
+        } shouldBe true
+      }
+
+      val permanentlyFailed: Option[Int] = await(repository.permanentlyFail())
+
+      val remainingFailed: Option[Int] = await(repository.permanentlyFail())
+
+      permanentlyFailed shouldBe Some(2)
+
+      remainingFailed shouldBe None
     }
 
     "return only max-limit number of notifications when there are more than max-limit queued notifications" in new Setup {

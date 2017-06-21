@@ -28,6 +28,7 @@ import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.concurrent.Future.successful
 
 @ImplementedBy(classOf[NotificationsService])
 trait NotificationsServiceApi extends BatchProcessor {
@@ -75,14 +76,15 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
 
   override def getTimedOutNotifications: Future[Option[Seq[Notification]]] = {
     getTimedOutLockKeeper.tryLock {
-      notificationRepository.getTimedOutNotifications(timeoutMillis, maxBatchSize).map(
-        _.map(np =>
-          Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
-      ).recover {
-        case e: Exception =>
-          Logger.error(s"Unable to retrieve timed-out notifications: ${e.getMessage}")
-          throw new ServiceUnavailableException(s"Unable to retrieve timed-out notifications")
-      }
+      for (
+        permanentlyFailed <- withRecovery(notificationRepository.permanentlyFail());
+        timedOut <- withRecovery(
+          notificationRepository.getTimedOutNotifications(timeoutMillis, maxBatchSize).map(
+            _.map(np =>
+              Notification(notificationId = Some(np.notificationId), status = np.status, endpoint = np.endpoint, content = np.content, messageId = np.messageId, os = np.os))
+          ));
+        _ <- successful(permanentlyFailed.foreach(n => Logger.info(s"Permanently failed $n notifications!")))
+      ) yield timedOut
     }
   }
 
@@ -90,5 +92,13 @@ class NotificationsService @Inject()(notificationRepository: PushNotificationRep
     val results: Seq[NotificationResult] = updates.map(s => NotificationResult(s._1, s._2)).toSeq
 
     processBatch[NotificationResult](results, notificationRepository.update)
+  }
+
+  def withRecovery[T](f: => Future[T]): Future[T] = {
+    f.recover {
+      case e: Exception =>
+        Logger.error(s"Unable to retrieve notifications: ${e.getMessage}", e)
+        throw new ServiceUnavailableException(s"Unable to retrieve notifications")
+    }
   }
 }
