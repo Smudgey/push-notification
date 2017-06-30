@@ -64,7 +64,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
         collection.indexesManager.ensure(
           Index(Seq("endpoint" -> IndexType.Ascending), name = Some("endpointNotUnique"), unique = false)),
         collection.indexesManager.ensure(
-          Index(Seq("status" -> IndexType.Ascending), name = Some("statusNotUnique"), unique = false))
+          Index(Seq("status" -> IndexType.Ascending), name = Some("statusNotUnique"), unique = false)),
+        collection.indexesManager.ensure(
+          Index(Seq("created" -> IndexType.Ascending), name = Some("createdNotUnique"), unique = false))
       )
     )
   }
