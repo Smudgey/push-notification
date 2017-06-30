@@ -111,7 +111,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
           BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
         )
       )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 
@@ -128,7 +128,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
           BSONDocument("updated" -> BSONDocument("$lt" -> BSONDateTime(DateTimeUtils.now.getMillis - timeoutMilliseconds)))
         )
       )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 
