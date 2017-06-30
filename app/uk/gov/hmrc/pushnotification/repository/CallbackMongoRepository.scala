@@ -66,7 +66,9 @@ class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetr
     Future.sequence(
       Seq(
         collection.indexesManager.ensure(
-          Index(Seq("messageId" -> IndexType.Ascending, "status" -> IndexType.Ascending, "attempt" -> IndexType.Ascending), name = Some("messageIdAndStatusAndAttemptUnique"), unique = true))
+          Index(Seq("messageId" -> IndexType.Ascending, "status" -> IndexType.Ascending, "attempt" -> IndexType.Ascending), name = Some("messageIdAndStatusAndAttemptUnique"), unique = true)),
+        collection.indexesManager.ensure(
+          Index(Seq("created" -> IndexType.Ascending), name = Some("createdNotUnique"), unique = false))
       )
     )
   }
@@ -106,7 +108,7 @@ class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetr
             BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
           )
         )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 

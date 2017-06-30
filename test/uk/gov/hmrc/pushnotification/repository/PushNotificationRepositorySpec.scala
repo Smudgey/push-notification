@@ -212,7 +212,7 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       }
     }
 
-    "find queued notifications, set these to 'sent' and increment attempts by 1" in new Setup {
+    "find queued notifications (oldest first), set these to 'sent' and increment attempts by 1" in new Setup {
       await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = someEndpoint, content = someContent, os = someOs)))
       await(repository.save(someAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = someContent, os = someOs)))
       await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs, status = Delivered)))
@@ -225,10 +225,12 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
 
       result.size shouldBe 2
 
-      val some: NotificationPersist = result.filter(_.endpoint == someEndpoint).head
-      val other: NotificationPersist = result.filter(_.endpoint == otherEndpoint).head
+      val some: NotificationPersist = result.head
+      val other: NotificationPersist = result(1)
 
+      some.endpoint shouldBe someEndpoint
       some.attempts shouldBe 1
+      other.endpoint shouldBe otherEndpoint
       other.attempts shouldBe 1
 
       val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
@@ -241,16 +243,22 @@ class PushNotificationRepositorySpec extends UnitSpec with MongoSpecSupport with
       stillQueued.size shouldBe 0
     }
 
-    "find notifications that are still in the Sent state after a timeout period has expired" in new Setup {
+    "find notifications (oldest first) that are still in the Sent state after a timeout period has expired" in new Setup {
+      await(repository.save(otherAuthId, Notification(messageId = someMessageId, endpoint = otherEndpoint, content = otherContent, os = someOs, status = Sent)))
       await(repository.save(otherAuthId, Notification(messageId = otherMessageId, endpoint = yetAnotherEndpoint, content = otherContent, os = someOs, status = Sent)))
 
       val sent: Seq[NotificationPersist] = await(repository.findByStatus(Sent))
 
-      sent.size shouldBe 1
+      sent.size shouldBe 2
 
-      val result: Seq[NotificationPersist] = await(repository.getTimedOutNotifications(1, 100))
+      Thread sleep 100
 
-      result.size shouldBe 1
+      val result: Seq[NotificationPersist] = await(repository.getTimedOutNotifications(25, 100))
+
+      result.size shouldBe 2
+
+      result.head.messageId shouldBe someMessageId
+      result(1).messageId shouldBe otherMessageId
     }
 
     "not return notifications that have exceeded the maximum number of attempts" in new Setup {
