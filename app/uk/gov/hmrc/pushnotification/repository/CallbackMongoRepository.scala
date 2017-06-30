@@ -106,7 +106,7 @@ class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetr
             BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
           )
         )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[PushMessageCallbackPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 

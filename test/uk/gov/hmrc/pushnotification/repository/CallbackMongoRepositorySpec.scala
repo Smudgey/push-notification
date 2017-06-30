@@ -178,7 +178,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       actual.answer shouldBe otherAnswer
     }
 
-    "find undelivered callbacks that have not exceeded the maximum number of attempts, and increase the number of attempts" in new Setup {
+    "find undelivered callbacks (oldest first) that have not exceeded the maximum number of attempts, and increase the number of attempts" in new Setup {
       val initialState: Seq[Either[String, Boolean]] =
         Seq(
           await(repository.save(someMessageId, someUrl, Acknowledge, None, 1)),
@@ -195,6 +195,9 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       val first: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered(maxRows))
 
       first.size shouldBe 5 // because 2 will have exceeded maximum retry attempts
+
+      first.head.status shouldBe Acknowledge
+      first(4).status shouldBe Timeout
 
       first.count(_.attempts == 1) shouldBe 0
       first.count(_.attempts == 2) shouldBe 1
