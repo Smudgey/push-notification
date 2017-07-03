@@ -38,7 +38,7 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
 
   def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
 
-  def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
+  def getCurrentMessages(journeyId: Option[String] = None): Action[AnyContent]
 
   def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[JsValue]
 }
@@ -91,8 +91,8 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
       )
   }
 
-  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] =
-    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+  override def getCurrentMessages(journeyId: Option[String]): Action[AnyContent] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async {
       implicit request =>
         errorWrapper {
           def getAuthId = request.authority.fold(throw new Exception("no auth!")){auth => auth.authInternalId}
