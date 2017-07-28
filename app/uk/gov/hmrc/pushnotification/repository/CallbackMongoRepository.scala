@@ -200,6 +200,14 @@ class CallbackMongoRepository @Inject()(mongo: DB, @Named("clientCallbackMaxRetr
 }
 
 
+@Singleton
+class CallbackMongoRepositoryTest @Inject() (mongo: DB, @Named("sendNotificationMaxRetryAttempts") maxAttempts: Int) extends CallbackMongoRepository(mongo, maxAttempts) {
+
+  def removeAllRecords(): Future[Unit] = {
+    removeAll().map(_ => ())
+  }
+}
+
 @ImplementedBy(classOf[CallbackMongoRepository])
 trait CallbackRepositoryApi {
   def save(messageId: String, callbackUrl: String, status: PushMessageStatus, answer: Option[String], attempt: Int = 0): Future[Either[String, Boolean]]

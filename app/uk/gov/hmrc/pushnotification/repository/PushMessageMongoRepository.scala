@@ -16,13 +16,13 @@
 
 package uk.gov.hmrc.pushnotification.repository
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, Json}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.api.indexes.{Index, IndexType}
-import reactivemongo.bson.{BSONArray, BSONDocument, BSONDateTime, BSONObjectID}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessage
@@ -96,6 +96,14 @@ class PushMessageMongoRepository @Inject()(mongo: DB)
     collection.find(
       BSONDocument("authId" -> authId)
     ).cursor[PushMessagePersist](ReadPreference.primaryPreferred).collect[Seq](50)
+  }
+}
+
+@Singleton
+class PushMessageMongoRepositoryTest @Inject() (mongo: DB) extends PushMessageMongoRepository(mongo) {
+
+  def removeAllRecords(): Future[Unit] = {
+    removeAll().map(_ => ())
   }
 }
 
