@@ -33,7 +33,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait CallbackControllerApi extends BaseController with ErrorHandling {
   val NoCallbacks: JsValue = Json.parse("""{"code":"NOT_FOUND","message":"No callbacks found"}""")
 
-  val LockFailed: JsValue = Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
+  val LockFailed: JsValue = Json.parse("""{"code":"CONFLICT","message":"Failed to obtain lock"}""")
 
   def getUndeliveredCallbacks: Action[AnyContent]
 
@@ -56,7 +56,7 @@ class CallbackController @Inject()(service: CallbackServiceApi) extends Callback
           else {
             Ok(Json.toJson(callbacks))
           }
-        }.getOrElse(ServiceUnavailable(LockFailed))
+        }.getOrElse(Conflict(LockFailed))
       }
       )
   }
