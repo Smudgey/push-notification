@@ -7,15 +7,14 @@ Get Message
 
 * **Method:**
 
-  `POST`
+  `GET`
 
-  Retrieve the message based on the supplied message Id and users authority. Only if the found message state is either Acknowledge or Answer
-  will the message be returned.
-  An empty JSON request is required to be supplied to the service.
-
+  Retrieve the message based on the supplied message Id and users authority. Message details will only be returned if 
+  the current state of the message is either Acknowledge or Answer.
+  
 * **Response:**
 
-    If the message was created successfully, a message id will be returned.
+  The details of push notification message:
 
 
 ```json
@@ -27,7 +26,8 @@ Get Message
     "yes": "Yes",
     "no": "No"
   }
-}```
+}
+```
 
 *  **URL Params**
 
@@ -39,7 +39,7 @@ Get Message
 * **Error Response:**
 
   * **Code:** 404 NOT_FOUND <br />
-  The user does not have any registered devices.
+  No message was found. Note that message details will only be returned if the message was not previously acknowledged or answered.
 
   * **Code:** 401 UNAUTHORIZED <br />
     **Content:** `{"code":"UNAUTHORIZED","message":"Bearer token is missing or not authorized for access"}`
