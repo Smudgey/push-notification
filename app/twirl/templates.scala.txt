@@ -1,4 +1,4 @@
-@(templateId: String, messageId: String, title: String, firstName: String, lastName: String, fullName: String, agent: String, callbackUrl: String)
+@(templateId: String, messageId: String, name: String, device: String, time: String, location: String, callbackUrl: String)
 
 @if(templateId == "NGC_001"){
     {
@@ -7,7 +7,7 @@
     }
 } else {
     @if(templateId == "NGC_002"){
-        @if(fullName == "" | agent == "" | callbackUrl == "" | messageId == "") {
+        @if(name == "" | device == "" | time == "" | location == "" | callbackUrl == "" | messageId == "") {
             {
                 "errorType": 400,
                 "exception": "Missing parameter for template @templateId requested"
@@ -15,10 +15,10 @@
         } else {
             {
               "id": "NGC_002",
-              "notification": "@fullName, HMRC has sent you a message",
+              "notification": "@name, HMRC has sent you a message",
               "message": {
-                  "subject": "Your agent has been authorised",
-                  "body": "Your agent, @agent, is now authorised to act on your behalf.If you think this authorisation has been done in error please call us, and we can make everything better +44300200100",
+                  "subject": "Did you try to sign in?",
+                  "body": "Your Government Gateway details were used to log into your tax account:\nDevice: @device\nTime: @time\nLocation: @location\nIf this wasn't you please call us on 0 3000 12 34 56 so we are able to protect your account information.",
                   "callbackUrl": "@callbackUrl",
                   "responses": {},
                   "messageId": "@messageId"
@@ -26,8 +26,8 @@
             }
         }
     } else {
-          @if(templateId == "NGC_003"){
-              @if(title == "" | firstName == "" | lastName == "" | agent == "" | callbackUrl == "" | messageId == "") {
+        @if(templateId == "NGC_003"){
+            @if(name == "" | device == "" | time == "" | location == "" | callbackUrl == "" | messageId == "") {
                   {
                       "errorType": 400,
                       "exception": "Missing parameter for template @templateId requested"
@@ -35,10 +35,10 @@
               } else {
                   {
                     "id": "NGC_003",
-                    "notification": "@title @firstName @lastName, HMRC has sent you a message",
+                    "notification": "@name, HMRC has sent you a message",
                     "message": {
-                      "subject": "You need to authorise your agent",
-                      "body": "You are required to authorise your agent, @agent. If you wish for your agent to act on your behalf with regards to your tax affairs then please tap 'Yes'. Alternatively if you do not want to authorise your agent to act on your behalf then please tap 'No'.",
+                      "subject": "Are you trying to sign in?",
+                      "body": "Your Government Gateway details are being to log into your tax account:\nDevice: @device\nTime: @time\nLocation: @location\nIs this you?",
                       "callbackUrl": "@callbackUrl",
                       "responses": {
                           "Yes": "Yes",

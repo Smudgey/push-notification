@@ -32,19 +32,19 @@ class TemplateSpec extends UnitSpec {
     }
 
     "return a completed template populated with params with a message" in new GUIDUtil {
-      val title = "Mr"
-      val firstName = "Peter"
-      val lastName = "Parker"
-      val agent = "Agent 47"
+      val name = "Peter Parker"
+      val device = "Nexus 5X"
+      val time = "17:21"
+      val location = "Manchester, UK"
       val callbackUrl = "http://callback.url"
-      val result: NotificationMessage = Template("NGC_003", Map("title" -> title, "firstName" -> firstName, "lastName" -> lastName, "agent" -> agent, "callbackUrl" -> callbackUrl)).complete()
+      val result: NotificationMessage = Template("NGC_003", Map("name" -> name, "device" -> device, "time" -> time, "location" -> location, "callbackUrl" -> callbackUrl)).complete()
 
-      result.notification.contains(title) shouldBe true
-      result.notification.contains(firstName) shouldBe true
-      result.notification.contains(lastName) shouldBe true
+      result.notification.contains(name) shouldBe true
       result.message.isDefined shouldBe true
-      result.message.get.subject shouldBe "You need to authorise your agent"
-      result.message.get.body.contains(agent) shouldBe true
+      result.message.get.subject shouldBe "Are you trying to sign in?"
+      result.message.get.body.contains(device) shouldBe true
+      result.message.get.body.contains(time) shouldBe true
+      result.message.get.body.contains(location) shouldBe true
       result.message.get.callbackUrl shouldBe callbackUrl
       result.message.get.messageId should BeGuid
     }
@@ -52,7 +52,7 @@ class TemplateSpec extends UnitSpec {
     "ignore a messageId parameter passed by the client" in {
       val messageId = "foo"
 
-      val result = Template("NGC_002", Map("fullName" -> "foo", "agent" -> "bar", "callbackUrl" -> "/baz", "messageId" -> messageId)).complete()
+      val result = Template("NGC_002", Map("name" -> "foo", "device" -> "bar", "time" -> "1:00PM", "location" -> "quux", "callbackUrl" -> "/baz", "messageId" -> messageId)).complete()
 
       result.message.get.messageId should not be messageId
     }

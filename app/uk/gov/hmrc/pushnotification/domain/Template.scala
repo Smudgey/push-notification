@@ -25,9 +25,9 @@ import uk.gov.hmrc.play.http.{BadRequestException, InternalServerException}
 case class Template(id: String, params: Map[String, String] = Map.empty) {
 
   def complete(): NotificationMessage = {
-    val template = twirl.txt.templates.render(id, UUID.randomUUID().toString,getParamById("title"), getParamById("firstName"),
-                                                  getParamById("lastName"), getParamById("fullName"),
-                                                  getParamById("agent"), getParamById("callbackUrl"))
+    val template = twirl.txt.templates.render(id, UUID.randomUUID().toString, getParamById("name"),
+                                                  getParamById("device"), getParamById("time"),
+                                                  getParamById("location"), getParamById("callbackUrl"))
     val result = Json.parse(template.toString())
     result.validate[NotificationMessage] match {
       case nm: JsSuccess[NotificationMessage] => nm.get

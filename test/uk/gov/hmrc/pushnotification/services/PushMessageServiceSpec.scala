@@ -64,7 +64,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     val someTemplateId = "NGC_002"
     val someCallbackUrl = "http://callback.url"
-    val someParams = Map("fullName" -> "Clark Kent", "agent" -> "James 007 Bond", "callbackUrl" -> "http://callback.url")
+     val someParams = Map("name" -> "Clark Kent", "device" -> "Snorble 3", "time"-> "09:12", "location"->"Metropolis", "callbackUrl" -> "http://callback.url")
 
     val endpointsWithOs = Map("foo" -> "windows", "bar" -> "android", "baz" -> "ios")
     val someTemplate = Template(someTemplateId, someParams)
