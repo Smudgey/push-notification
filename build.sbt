@@ -20,6 +20,8 @@ defaultSettings()
 scalaVersion := "2.11.8"
 crossScalaVersions := Seq("2.11.8")
 
+PlayKeys.playDefaultPort := 8246
+
 libraryDependencies ++= AppDependencies()
 retrieveManaged := true
 evictionWarningOptions in update := EvictionWarningOptions.default.withWarnScalaVersionEviction(false)
