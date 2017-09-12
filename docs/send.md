@@ -18,9 +18,11 @@ Send Message
   {
     "id": "NGC_002",
     "parameters": {
-      "fullName" : "Jane Jones",
-      "agent" : "Acme Accounting Ltd",
-      "callbackUrl" : "https://some.other.service/callback"  
+      "name": "Jane Jones",
+      "device": "Jane's iPhone",
+      "time": "12th September 2017 11:09",
+      "location": "London",
+      "callbackUrl": "https://some.other.service/callback"
      }
   }
   ```
@@ -31,9 +33,11 @@ Send Message
   curl -i -X POST -H "Content-Type: application/json" -H "Accept: application/vnd.hmrc.1.0+json" -H "Authorization: Bearer XlLM91CY3hEHqHlrKX9N0Y/F6eZJ6EhaSp4de7G6IuHLQSN2EtQPOmlZdpm4/eshG9yj2bxLY9bGVbbkcKBM0BKyztGq5csF60bCaqNfkPeOJvkZ5TQDDnf38fa3lhT03yxYiM08RPthxiPZtbaO8yhf65/Q7jWj5JuFl60avD01TnU/CoN5cH3wc88qbn82" -d '{
     "id": "NGC_002",
     "parameters": {
-      "fullName" : "Jane Jones",
-      "agent" : "Acme Accounting Ltd",
-      "callbackUrl" : "https://some.other.service/callback"  
+      "name": "Jane Jones",
+      "device": "Jane's iPhone",
+      "time": "12th September 2017 11:09",
+      "location": "London",
+      "callbackUrl": "https://some.other.service/callback"  
      }
   }' "localhost:8246/messages"
   ```
