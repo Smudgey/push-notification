@@ -66,10 +66,10 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
 
     def findCallback(message:Option[PushMessage]): Future[Option[PushMessage]] = {
       val notFound:Option[PushMessage] = None
-      message.fold(Future.successful(notFound)) { found =>
+      message.fold(Future.successful(notFound)) { found ⇒
         callbackRepository.findLatest(List(messageId)).map {
-          case (callback :: _) if Seq(Acknowledge, Answer).contains(callback.status) => message
-          case _ => None
+          case (callback :: _) ⇒ None
+          case _ ⇒ message
         }
       }
     }
