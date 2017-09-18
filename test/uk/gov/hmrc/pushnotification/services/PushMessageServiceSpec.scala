@@ -117,6 +117,12 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
     }
 
+    def callbackNotCreated() = {
+      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
+        override def answer(invocation: InvocationOnMock) = successful(List())
+      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
+    }
+
     def primeFindForMessageAndAuthId(messageId:String, authId:String, response:Option[PushMessagePersist]) = {
       doAnswer(new Answer[Future[Option[PushMessagePersist]]] {
         override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessagePersist]] = successful(response)
@@ -301,18 +307,13 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService getMessageFromMessageId" should {
-    Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
-      s"return $status messages for a given authId" in new Success {
-
+      "return message for a given authId if no callback document has been created" in new Success {
         primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))
-        latestMessageIsOfStatus(status)
-
+        callbackNotCreated()
         await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe Some(somePushMessage)
-
-      }
     }
 
-    PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
+    PushMessageStatus.statuses.foreach { status =>
       s"not return $status message for a given authId" in new Success {
         primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))
         latestMessageIsOfStatus(status)
@@ -322,7 +323,6 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "return none when the message cannot be resolved" in new Success {
-
       primeFindForMessageAndAuthId(savedMessage.messageId, "authId", None)
       await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe None
     }

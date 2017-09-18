@@ -62,10 +62,10 @@ object PushMessageStatus {
   val reads: Reads[PushMessageStatus] = new Reads[PushMessageStatus] {
     override def reads(json: JsValue): JsResult[PushMessageStatus] =
       json match {
-        case JsString(value: String) if value == Acknowledge.toString => JsSuccess(Acknowledge)
-        case JsString(value: String) if value == Answer.toString => JsSuccess(Answer)
-        case JsString(value: String) if value == Timeout.toString => JsSuccess(Timeout)
-        case JsString(value: String) if value == PermanentlyFailed.toString => JsSuccess(PermanentlyFailed)
+        case JsString(value: String) if value == Acknowledge.toString ⇒ JsSuccess(Acknowledge)
+        case JsString(value: String) if value == Answer.toString ⇒ JsSuccess(Answer)
+        case JsString(value: String) if value == Timeout.toString ⇒ JsSuccess(Timeout)
+        case JsString(value: String) if value == PermanentlyFailed.toString ⇒ JsSuccess(PermanentlyFailed)
         case _ => JsError(s"Failed to resolve $json")
       }
   }
