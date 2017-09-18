@@ -106,14 +106,9 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
   override def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[AnyContent] =
     accessControl.validateAccept(acceptHeaderValidationRules).async {
       implicit request =>
-
         errorWrapper {
           def getAuthId = request.authority.fold(throw new Exception("no auth!")){auth => auth.authInternalId}
-          val maybeMessages: Future[Option[PushMessage]] = for (
-            message <- service.getMessageFromMessageId(messageId, getAuthId)
-          ) yield message
-
-          maybeMessages.map {
+          service.getMessageFromMessageId(messageId, getAuthId).map {
             _.fold(NotFound("Message Id unknown!")) { found => Ok(Json.toJson(found)) }
           }
         }
