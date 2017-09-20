@@ -1,7 +1,7 @@
 # microservice specific routes
 
 POST   /messages                @uk.gov.hmrc.pushnotification.controllers.PushMessageController.sendTemplateMessage(journeyId: Option[String] = None)
-POST   /messages/:id/status     @uk.gov.hmrc.pushnotification.controllers.PushMessageController.respondToMessage(id: String, journeyId: Option[String] = None)
+POST   /messages/:id/response   @uk.gov.hmrc.pushnotification.controllers.PushMessageController.respondToMessage(id: String, journeyId: Option[String] = None)
 GET    /messages/current        @uk.gov.hmrc.pushnotification.controllers.PushMessageController.getCurrentMessages(journeyId: Option[String] = None)
 GET    /messages/:id            @uk.gov.hmrc.pushnotification.controllers.PushMessageController.getMessageFromMessageId(id:String, journeyId: Option[String] = None)
 
