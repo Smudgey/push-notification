@@ -75,7 +75,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         response => {
           if (id == response.messageId) {
             val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
-            errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
+            errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { result =>
               if (result) {
                 Ok(Json.obj())
               } else {

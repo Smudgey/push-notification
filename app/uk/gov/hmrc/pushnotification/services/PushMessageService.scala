@@ -20,7 +20,7 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import uk.gov.hmrc.api.service.Auditor
-import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
+import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
@@ -37,7 +37,7 @@ trait PushMessageServiceApi extends Auditor {
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
-  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
+  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
 
   def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
 
@@ -81,7 +81,7 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     ) yield result
   }
 
-  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])] = {
+  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean] = {
     for (
       message: Option[PushMessage] <- messageRepository.find(messageId, None).map(_.map(pm =>
         PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
@@ -93,8 +93,8 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
           case Right(result) => result
           case Left(error) => throw new ServiceUnavailableException(error)
         }
-      }.getOrElse(Future(false))
-    ) yield (saved, message)
+      }.getOrElse(throw new NotFoundException(s"message with id [$messageId] not found"))
+    ) yield saved
   }
 
   // todo: check if sequence is required?
