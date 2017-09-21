@@ -18,7 +18,7 @@
               "notification": "@name, HMRC has sent you a message",
               "message": {
                   "subject": "Did you try to sign in?",
-                  "body": "Your Government Gateway details were used to log into your tax account:\nDevice: @device\nTime: @time\nLocation: @location\nIf this wasn't you please call us on 0 3000 12 34 56 so we are able to protect your account information.",
+                  "body": "<p>Your Government Gateway details were used to sign into your tax account:</p>\n<p><b>Device</b></p>\n<p><font color='grey'>@device</font></p>\n<p><b>Time</b></p>\n<p><font color='grey'>@time</font></p>\n<p><b>Location</b></p>\n<p>If this wasn't you please call us on 0 3000 12 34 56 so we are able to protect your account information.</p>",
                   "callbackUrl": "@callbackUrl",
                   "responses": {},
                   "messageId": "@messageId"
@@ -38,7 +38,7 @@
                     "notification": "@name, HMRC has sent you a message",
                     "message": {
                       "subject": "Are you trying to sign in?",
-                      "body": "Your Government Gateway details are being to log into your tax account:\nDevice: @device\nTime: @time\nLocation: @location\nIs this you?",
+                      "body": "<p>Your government gateway details are being used to sign into your tax account:</p>\n<p><b>Device</b></p>\n<p><font color='grey'>@device</font></p>\n<p><b>Time</b></p>\n<p><font color='grey'>@time</font></p>\n<p><b>Location</b></p>\n<p><font color='grey'>@location</font></p>\n<p align='center'><br/><b>Is this you?</b></p>",
                       "callbackUrl": "@callbackUrl",
                       "responses": {
                           "Yes": "Yes",
