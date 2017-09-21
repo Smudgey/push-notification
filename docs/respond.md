@@ -47,7 +47,8 @@ Details
   * **Code:** 200 OK
 
   * **Code:** 202 Accepted <br />
-  202 is returned when a request is made to acknowledged a message that was previously acknowledged, or to answer a message that was previously answered. 
+  202 is returned when a request is made to acknowledged a message that was previously acknowledged, or to answer a message that was previously answered.
+  In these cases the stored response is not updated, e.g. the first answer is retained and any other answers are ignored.
 
 * **Error Responses:**
 
