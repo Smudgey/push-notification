@@ -54,6 +54,9 @@ Details
   * **Code:** 400 Bad Request <br />
     The request was invalid, for example the JSON supplied was invalid or the messageId in the path did not match the id in the payload.
 
+  * **Code:** 404 Not Found <br />
+    No message with the specified ID was found.
+
   OR on failure.
 
   * **Code:** 500 INTERNAL_SERVER_ERROR <br />

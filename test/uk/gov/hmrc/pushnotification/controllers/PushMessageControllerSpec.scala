@@ -29,7 +29,7 @@ import play.api.test.Helpers.GET
 import play.api.test.{FakeApplication, FakeRequest}
 import uk.gov.hmrc.domain.Nino
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException}
+import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, NotFoundException, ServiceUnavailableException}
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{AuthConnector, Authority, NoInternalId, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.controllers.action.{AccountAccessControl, AccountAccessControlWithHeaderCheck, Auth}
@@ -84,12 +84,16 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
   private trait Success extends Setup {
     when(mockAuthConnector.grantAccess()(any[HeaderCarrier](), any[ExecutionContext]())).thenReturn(Future(someAuthority))
     when(mockService.sendTemplateMessage(any[Template]())(any[HeaderCarrier](), any[Option[Authority]]())).thenReturn(Future(Option("foo")))
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((true, Some(someMessage))))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(true))
     when(mockService.getCurrentMessages(someAuthId)).thenReturn(Future(Seq(someMessage, someOtherMessage)))
   }
 
   private trait Duplicate extends Setup {
-    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future((false, Some(someMessage))))
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(false))
+  }
+
+  private trait NotFound extends Setup {
+    when(mockService.respondToMessage(any[String](), any[PushMessageStatus](), any[Option[String]])).thenReturn(Future(throw new NotFoundException("message not found")))
   }
 
   private trait AuthFailure extends Setup {
@@ -165,54 +169,41 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 200
-      jsonBodyOf(result) shouldBe Json.parse(
-        """
-          |{
-          |  "id":"msg-some-id",
-          |  "subject":"snarkle",
-          |  "body":"Foo, bar baz!",
-          |  "responses":{
-          |    "yes":"Sure",
-          |    "no":"Nope"
-          |  }
-          |}
-          |""".stripMargin)
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "record the answer and return 200 success" in new Success {
       val result: Result = await(controller.respondToMessage(someMessageId)(answerRequest))
 
       status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "return 202 accepted and message details, given a previously acknowledged message" in new Duplicate {
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 202
-      jsonBodyOf(result) shouldBe Json.parse(
-        """
-          |{
-          |  "id":"msg-some-id",
-          |  "subject":"snarkle",
-          |  "body":"Foo, bar baz!",
-          |  "responses":{
-          |    "yes":"Sure",
-          |    "no":"Nope"
-          |  }
-          |}
-          |""".stripMargin)
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "return 202 accepted given a previously answered message" in new Duplicate {
       val result: Result = await(controller.respondToMessage(someMessageId)(answerRequest))
 
       status(result) shouldBe 202
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
-    "return successfully with a 201 response when journeyId is supplied" in new Success {
+    "return successfully with a 200 response when journeyId is supplied" in new Success {
       val result: Result = await(controller.respondToMessage(someMessageId, Some("journey-id"))(answerRequest))
 
       status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse("{}")
+    }
+
+    "return 404 not found when no message could be found" in new NotFound {
+      val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
+
+      status(result) shouldBe 404
     }
 
     "return 400 bad request given an invalid request" in new Success {

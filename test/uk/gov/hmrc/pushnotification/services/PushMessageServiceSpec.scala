@@ -208,7 +208,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-      val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledge, None))
+      val result: Boolean = await(service.respondToMessage(someMessageId, Acknowledge, None))
 
       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
@@ -218,13 +218,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       answerCaptor.getValue shouldBe None
       attemptCaptor.getValue shouldBe 0
 
-      val message = maybeMessage.getOrElse(fail("should have returned message details"))
-
-      message.messageId shouldBe someMessageId
-      message.callbackUrl shouldBe someUrl
-      message.subject shouldBe someSubject
-      message.body shouldBe someBody
-      message.responses shouldBe someResponses
+      result shouldBe true
     }
 
     "save the answer with the callback url and return true given a valid message id and answer" in new Success {
@@ -234,7 +228,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
+      val result: Boolean = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
 
       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
@@ -248,19 +242,21 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "not save anything and return true given a valid message id and duplicate status" in new Duplicate {
-      val (initial, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      val initial: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
       initial shouldBe true
 
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      val result: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
       result shouldBe false
     }
 
-    "return false given an invalid message id" in new Invalid {
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+    "throw a not found exception given an invalid message id" in new Invalid {
+      val result = intercept[NotFoundException] {
+        await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      }
 
-      result shouldBe false
+      result.getMessage shouldBe s"message with id [$someMessageId] not found"
     }
 
     "throw a bad request exception given an invalid answer" in new Success {
