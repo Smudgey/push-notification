@@ -165,54 +165,35 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 200
-      jsonBodyOf(result) shouldBe Json.parse(
-        """
-          |{
-          |  "id":"msg-some-id",
-          |  "subject":"snarkle",
-          |  "body":"Foo, bar baz!",
-          |  "responses":{
-          |    "yes":"Sure",
-          |    "no":"Nope"
-          |  }
-          |}
-          |""".stripMargin)
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "record the answer and return 200 success" in new Success {
       val result: Result = await(controller.respondToMessage(someMessageId)(answerRequest))
 
       status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "return 202 accepted and message details, given a previously acknowledged message" in new Duplicate {
       val result: Result = await(controller.respondToMessage(someMessageId)(acknowledgeRequest))
 
       status(result) shouldBe 202
-      jsonBodyOf(result) shouldBe Json.parse(
-        """
-          |{
-          |  "id":"msg-some-id",
-          |  "subject":"snarkle",
-          |  "body":"Foo, bar baz!",
-          |  "responses":{
-          |    "yes":"Sure",
-          |    "no":"Nope"
-          |  }
-          |}
-          |""".stripMargin)
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "return 202 accepted given a previously answered message" in new Duplicate {
       val result: Result = await(controller.respondToMessage(someMessageId)(answerRequest))
 
       status(result) shouldBe 202
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
-    "return successfully with a 201 response when journeyId is supplied" in new Success {
+    "return successfully with a 200 response when journeyId is supplied" in new Success {
       val result: Result = await(controller.respondToMessage(someMessageId, Some("journey-id"))(answerRequest))
 
       status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse("{}")
     }
 
     "return 400 bad request given an invalid request" in new Success {

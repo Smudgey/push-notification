@@ -77,10 +77,10 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
             val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
             errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
               if (result) {
-                maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
+                Ok(Json.obj())
               } else {
                 Logger.info(s"Response for messageId=[${ response.messageId }] with status=[$status], answer=[${ response.answer.getOrElse("") }] was previously processed")
-                maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
+                Accepted(Json.obj())
               }
             })
           } else {
