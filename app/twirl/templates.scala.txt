@@ -18,7 +18,7 @@
               "notification": "@name, HMRC has sent you a message",
               "message": {
                   "subject": "Did you try to sign in?",
-                  "body": "<p>Your Government Gateway details were used to sign into your tax account:</p>\n<p><b>Device</b></p>\n<p><font color='grey'>@device</font></p>\n<p><b>Time</b></p>\n<p><font color='grey'>@time</font></p>\n<p><b>Location</b></p>\n<p>If this wasn't you please call us on 0 3000 12 34 56 so we are able to protect your account information.</p>",
+                  "body": "<p>Your Government Gateway details were used to sign into your tax account:</p>\n<p><b>Device</b></p>\n<p><font color='grey'>@device</font></p>\n<p><b>Time</b></p>\n<p><font color='grey'>@time</font></p>\n<p><b>Location</b></p>\n<p><font color='grey'>@location</font></p>\n<p>If this wasn't you please call us on 0 3000 12 34 56 so we are able to protect your account information.</p>",
                   "callbackUrl": "@callbackUrl",
                   "responses": {},
                   "messageId": "@messageId"
