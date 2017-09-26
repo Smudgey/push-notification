@@ -20,7 +20,7 @@ import java.util.UUID
 
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.{any, matches}
-import org.mockito.Mockito.{doAnswer, doReturn, times, verify}
+import org.mockito.Mockito._
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.concurrent.ScalaFutures
@@ -112,15 +112,19 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
-      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
+      doAnswer(new Answer[Future[Map[String, PushMessageCallbackPersist]]] {
+        override def answer(invocationOnMock: InvocationOnMock): Future[Map[String, PushMessageCallbackPersist]] = successful(Map(savedMessage.messageId -> PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
       }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
+
+      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0))))
     }
 
     def callbackNotCreated() = {
       doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
         override def answer(invocation: InvocationOnMock) = successful(List())
       }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
+
+      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(None))
     }
 
     def primeFindForMessageAndAuthId(messageId:String, authId:String, response:Option[PushMessagePersist]) = {
@@ -277,6 +281,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   }
 
   "PushMessageService getCurrentMessages" should {
+    //TODO cover cases where there are multiple messages, including when some of the messages have no corresponding callback
     Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
       s"return $status messages for a given authId" in new Success {
         latestMessageIsOfStatus(status)
@@ -294,9 +299,8 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "not return messages if no latest callback" in new Success {
-      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List.empty)
-      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
+      when(mockCallbackRepository.findLatest(List(savedMessage.messageId))).thenReturn(successful(Map.empty[String, PushMessageCallbackPersist]))
+      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(None))
 
       await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
     }
