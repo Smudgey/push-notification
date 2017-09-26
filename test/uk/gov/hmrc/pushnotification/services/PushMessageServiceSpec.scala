@@ -112,18 +112,10 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
-      doAnswer(new Answer[Future[Map[String, PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[Map[String, PushMessageCallbackPersist]] = successful(Map(savedMessage.messageId -> PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
-      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
-
       when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0))))
     }
 
     def callbackNotCreated() = {
-      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
-        override def answer(invocation: InvocationOnMock) = successful(List())
-      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
-
       when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(None))
     }
 
