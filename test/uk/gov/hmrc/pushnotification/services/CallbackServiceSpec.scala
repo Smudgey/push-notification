@@ -19,7 +19,7 @@ package uk.gov.hmrc.pushnotification.services
 import org.joda.time.Duration
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
@@ -65,22 +65,22 @@ class CallbackServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplic
   }
 
   private trait LockOK extends Setup {
-    doReturn(successful(true), Nil: _*).when(lockRepository).lock(any[String](), any[String](), any[Duration]())
-    doReturn(successful({}), Nil: _*).when(lockRepository).releaseLock(any[String](), any[String]())
+    when(lockRepository.lock(any[String](), any[String](), any[Duration]())).thenReturn(successful(true))
+    when(lockRepository.releaseLock(any[String](), any[String]())).thenReturn(successful({}))
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(someCallback, otherCallback)), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
+    when(mockRepository.findUndelivered(ArgumentMatchers.any[Int]())).thenReturn(successful(Seq(someCallback, otherCallback)))
 
-    doReturn(successful(Right(someCallback)), Nil: _*).when(mockRepository).update(someCallbackResult)
-    doReturn(successful(Left("Something is wrong")), Nil: _*).when(mockRepository).update(otherCallbackResult)
+    when(mockRepository.update(someCallbackResult)).thenReturn(successful(Right(someCallback)))
+    when(mockRepository.update(otherCallbackResult)).thenReturn(successful(Left("Something is wrong")))
   }
 
   private trait Failed extends LockOK {
 
-    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).findUndelivered(ArgumentMatchers.any[Int]())
+    when(mockRepository.findUndelivered(ArgumentMatchers.any[Int]())).thenReturn(failed(new Exception("SPLAT!")))
 
-    doReturn(failed(new Exception("SPLAT!")), Nil: _*).when(mockRepository).update(any[CallbackResult]())
+    when(mockRepository.update(any[CallbackResult]())).thenReturn(failed(new Exception("SPLAT!")))
   }
 
   "CallbackService getUndeliveredCallbacks" should {
