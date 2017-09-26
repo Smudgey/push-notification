@@ -24,10 +24,9 @@ import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
-import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository._
 
-import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -67,9 +66,9 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     def findCallback(message:Option[PushMessage]): Future[Option[PushMessage]] = {
       val notFound:Option[PushMessage] = None
       message.fold(Future.successful(notFound)) { found ⇒
-        callbackRepository.findLatest(List(messageId)).map {
-          case (callback :: _) ⇒ None
-          case _ ⇒ message
+        callbackRepository.findLatest(messageId).map {
+          case Some(_) ⇒ None
+          case None ⇒ message
         }
       }
     }
@@ -124,12 +123,9 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
   private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
     for {
       messages <- messageRepository.findByAuthority(authId)
-      callbackMessagesPairs: immutable.Seq[(PushMessageCallbackPersist, PushMessagePersist)] <- callbackRepository.findLatest(messages.map(_.messageId).toList).map(_.zip(messages))
-    } yield
-      callbackMessagesPairs.flatMap {
-        case (PushMessageCallbackPersist(_, _, _, status, _, _, _), message) if Seq(Acknowledge, Answer).contains(status) =>
-          Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
-        case _ => None
-      }
+      callbacks: Map[String, PushMessageCallbackPersist] <- callbackRepository.findLatest(messages.map(_.messageId))
+    } yield messages
+      .filter(message => callbacks.get(message.messageId).exists(callback => callback.status == Acknowledge || callback.status == Answer))
+      .map(message => PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
   }
 }
