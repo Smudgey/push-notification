@@ -38,6 +38,8 @@ trait PushMessageServiceApi extends Auditor {
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
 
   def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]]
+
+  def getMessageStatus(messageId: String): Future[Option[PushMessageStatus]]
 }
 
 @Singleton
@@ -92,6 +94,9 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
       }.getOrElse(throw new NotFoundException(s"message with id [$messageId] not found"))
     ) yield saved
   }
+
+  def getMessageStatus(messageId: String): Future[Option[PushMessageStatus]] =
+    callbackRepository.findLatest(messageId).map(_.map(_.status))
 
   // todo: check if sequence is required?
   private def createNotifications(authId: String, endpoints: Map[String, String], message: String, messageId: Option[String]): Future[Seq[String]] = {
