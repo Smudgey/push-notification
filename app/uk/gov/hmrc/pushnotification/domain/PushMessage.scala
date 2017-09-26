@@ -18,8 +18,6 @@ package uk.gov.hmrc.pushnotification.domain
 
 import java.util.UUID
 
-import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
 import play.api.libs.json._
 
 import scala.math.BigDecimal
@@ -29,10 +27,12 @@ sealed trait PushMessageStatus
 object PushMessageStatus {
   val statuses = List(Acknowledge, Answer, Timeout, PermanentlyFailed)
 
+  // Notification acknowledged from device
   case object Acknowledge extends PushMessageStatus {
     override def toString: String = "acknowledge"
   }
 
+  // User answer received from device
   case object Answer extends PushMessageStatus {
     override def toString: String = "answer"
   }

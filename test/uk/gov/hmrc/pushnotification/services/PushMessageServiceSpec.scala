@@ -280,32 +280,6 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
   }
 
-  "PushMessageService getCurrentMessages" should {
-    //TODO cover cases where there are multiple messages, including when some of the messages have no corresponding callback
-    Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
-      s"return $status messages for a given authId" in new Success {
-        latestMessageIsOfStatus(status)
-
-        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
-      }
-    }
-
-    PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
-      s"not return $status messages for a given authId" in new Success {
-        latestMessageIsOfStatus(status)
-
-        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
-      }
-    }
-
-    "not return messages if no latest callback" in new Success {
-      when(mockCallbackRepository.findLatest(List(savedMessage.messageId))).thenReturn(successful(Map.empty[String, PushMessageCallbackPersist]))
-      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(None))
-
-      await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
-    }
-  }
-
   "PushMessageService getMessageFromMessageId" should {
       "return message for a given authId if no callback document has been created" in new Success {
         primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))

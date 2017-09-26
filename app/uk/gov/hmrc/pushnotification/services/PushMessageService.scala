@@ -23,7 +23,6 @@ import uk.gov.hmrc.api.service.Auditor
 import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository._
 
@@ -37,8 +36,6 @@ trait PushMessageServiceApi extends Auditor {
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
   def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
-
-  def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
 
   def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]]
 }
@@ -114,18 +111,5 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
           case Left(error) => throw new Exception(error)
        }
     }
-  }
-
-  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = {
-    getMessagesByAuthority(authId)
-  }
-
-  private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
-    for {
-      messages <- messageRepository.findByAuthority(authId)
-      callbacks: Map[String, PushMessageCallbackPersist] <- callbackRepository.findLatest(messages.map(_.messageId))
-    } yield messages
-      .filter(message => callbacks.get(message.messageId).exists(callback => callback.status == Acknowledge || callback.status == Answer))
-      .map(message => PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
   }
 }
