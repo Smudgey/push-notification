@@ -19,7 +19,7 @@ package uk.gov.hmrc.pushnotification.services
 import org.joda.time.Duration
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
@@ -56,23 +56,23 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
   }
 
   private trait LockOK extends Setup {
-    doReturn(successful(true), Nil: _* ).when(lockRepository).lock(any[String](), any[String](), any[Duration]())
-    doReturn(successful({}), Nil: _* ).when(lockRepository).releaseLock(any[String](), any[String]())
+    when(lockRepository.lock(any[String](), any[String](), any[Duration]())).thenReturn(successful(true))
+    when(lockRepository.releaseLock(any[String](), any[String]())).thenReturn(successful({}))
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
-    doReturn(successful(Some(5)), Nil: _* ).when(notificationRepository).permanentlyFail()
-    doReturn(successful(Seq(otherPersisted, somePersisted)), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
-    doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(someNotificationId, Delivered)))
-    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(otherNotificationId, Queued)))
+    when(notificationRepository.getQueuedNotifications(any[Int]())).thenReturn(successful(Seq(somePersisted, otherPersisted)))
+    when(notificationRepository.permanentlyFail()).thenReturn(successful(Some(5)))
+    when(notificationRepository.getTimedOutNotifications(any[Long](), any[Int]())).thenReturn(successful(Seq(otherPersisted, somePersisted)))
+    when(notificationRepository.update(ArgumentMatchers.eq(NotificationResult(someNotificationId, Delivered)))).thenReturn(successful(Right(somePersisted)))
+    when(notificationRepository.update(ArgumentMatchers.eq(NotificationResult(otherNotificationId, Queued)))).thenReturn(successful(Left("KABOOM!")))
   }
 
   private trait Failed extends LockOK {
-    doReturn(successful(None), Nil: _* ).when(notificationRepository).permanentlyFail()
-    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
-    doReturn(failed(new Exception("SPLAT!")), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
-    doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[NotificationResult]())
+    when(notificationRepository.permanentlyFail()).thenReturn(successful(None))
+    when(notificationRepository.getQueuedNotifications(any[Int]())).thenReturn(failed(new Exception("KAPOW!")))
+    when(notificationRepository.getTimedOutNotifications(any[Long](), any[Int]())).thenReturn(failed(new Exception("SPLAT!")))
+    when(notificationRepository.update(any[NotificationResult]())).thenReturn(failed(new Exception("CRASH!")))
   }
 
   "NotificationsService getQueuedNotifications" should {
