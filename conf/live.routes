@@ -2,7 +2,6 @@
 
 POST   /messages                @uk.gov.hmrc.pushnotification.controllers.PushMessageController.sendTemplateMessage(journeyId: Option[String] = None)
 POST   /messages/:id/response   @uk.gov.hmrc.pushnotification.controllers.PushMessageController.respondToMessage(id: String, journeyId: Option[String] = None)
-GET    /messages/current        @uk.gov.hmrc.pushnotification.controllers.PushMessageController.getCurrentMessages(journeyId: Option[String] = None)
 GET    /messages/:id            @uk.gov.hmrc.pushnotification.controllers.PushMessageController.getMessageFromMessageId(id:String, journeyId: Option[String] = None)
 
 GET    /callbacks/undelivered    @uk.gov.hmrc.pushnotification.controllers.CallbackController.getUndeliveredCallbacks
@@ -11,4 +10,3 @@ POST   /callbacks/status         @uk.gov.hmrc.pushnotification.controllers.Callb
 GET    /notifications/unsent        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getQueuedNotifications
 GET    /notifications/timedout      @uk.gov.hmrc.pushnotification.controllers.NotificationsController.getTimedOutNotifications
 POST   /notifications/status        @uk.gov.hmrc.pushnotification.controllers.NotificationsController.updateNotifications()
-
