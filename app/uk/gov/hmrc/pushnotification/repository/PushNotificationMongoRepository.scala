@@ -25,6 +25,7 @@ import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
+import reactivemongo.play.json.ImplicitBSONHandlers._
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{PermanentlyFailed, delivered, failed, queued, sent}

@@ -19,7 +19,7 @@ package uk.gov.hmrc.pushnotification.connector
 import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
-import uk.gov.hmrc.play.http._
+import uk.gov.hmrc.http._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -27,7 +27,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait PushRegistrationConnectorApi {
   implicit val hc = HeaderCarrier()
 
-  def http: HttpGet
+  def http: CoreGet
 
   def serviceUrl: String
 
@@ -42,4 +42,4 @@ trait PushRegistrationConnectorApi {
 
 
 @Singleton
-class PushRegistrationConnector @Inject() (@Named("pushRegistrationUrl") val serviceUrl: String, val http: HttpGet) extends PushRegistrationConnectorApi
+class PushRegistrationConnector @Inject() (@Named("pushRegistrationUrl") val serviceUrl: String, val http: CoreGet) extends PushRegistrationConnectorApi

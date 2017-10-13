@@ -17,10 +17,10 @@
 package uk.gov.hmrc.pushnotification.services
 
 import play.api.Logger
-import uk.gov.hmrc.play.http.HttpException
+import uk.gov.hmrc.http.HttpException
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 trait BatchProcessor {
   val maxConcurrent: Int

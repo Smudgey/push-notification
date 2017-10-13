@@ -22,7 +22,7 @@ import com.google.inject.ImplementedBy
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, BodyParsers}
-import uk.gov.hmrc.play.http.HeaderCarrier
+import uk.gov.hmrc.play.HeaderCarrierConverter
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.domain.{CallbackBatch, CallbackResultBatch}
 import uk.gov.hmrc.pushnotification.services.CallbackServiceApi
@@ -46,7 +46,7 @@ class CallbackController @Inject()(service: CallbackServiceApi) extends Callback
 
   override def getUndeliveredCallbacks: Action[AnyContent] = Action.async {
     implicit request =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+      implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(request.headers, None)
 
       errorWrapper(service.getUndeliveredCallbacks.map { (result: Option[CallbackBatch]) =>
         result.map { callbacks =>
@@ -63,7 +63,7 @@ class CallbackController @Inject()(service: CallbackServiceApi) extends Callback
 
   override def updateCallbacks: Action[JsValue] = Action.async(BodyParsers.parse.json) {
     implicit request =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+      implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(request.headers, None)
 
       request.body.validate[CallbackResultBatch].fold(
         errors => {

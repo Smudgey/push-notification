@@ -22,7 +22,7 @@ import com.google.inject.ImplementedBy
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.{Action, AnyContent, BodyParsers}
-import uk.gov.hmrc.play.http.HeaderCarrier
+import uk.gov.hmrc.play.HeaderCarrierConverter
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationStatus}
 import uk.gov.hmrc.pushnotification.services.NotificationsServiceApi
@@ -53,7 +53,7 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
 
   override def updateNotifications: Action[JsValue] = Action.async(BodyParsers.parse.json) {
     implicit request =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+      implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(request.headers, None)
 
       request.body.validate[Map[String, NotificationStatus]].fold(
         errors => {
@@ -73,7 +73,7 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
 
   private def findNotifications(f: => Future[Option[Seq[Notification]]]) = Action.async {
     implicit request =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+      implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(request.headers, None)
 
       errorWrapper(f.map { (result: Option[Seq[Notification]]) =>
         result.map { notifications =>

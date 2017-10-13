@@ -22,13 +22,13 @@ import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
 import uk.gov.hmrc.api.controllers.{ErrorAcceptHeaderInvalid, ErrorUnauthorized, ErrorUnauthorizedLowCL, HeaderValidator}
+import uk.gov.hmrc.http.{Request => _, _}
+import uk.gov.hmrc.play.HeaderCarrierConverter
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http._
-import uk.gov.hmrc.play.http.hooks.HttpHook
 import uk.gov.hmrc.pushnotification.connector._
 import uk.gov.hmrc.pushnotification.controllers.{ErrorNoInternalId, ErrorUnauthorizedNoNino, ForbiddenAccess}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 
 case class AuthenticatedRequest[A](authority: Option[Authority], request: Request[A]) extends WrappedRequest(request)
@@ -40,14 +40,14 @@ trait AccountAccessControlApi extends ActionBuilder[AuthenticatedRequest] with R
   val authConnector: AuthConnector
 
   def invokeBlock[A](request: Request[A], block: AuthenticatedRequest[A] => Future[Result]) = {
-    implicit val hc = HeaderCarrier.fromHeadersAndSession(request.headers, None)
+    implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(request.headers, None)
 
     authConnector.grantAccess().flatMap {
       authority => {
         block(AuthenticatedRequest(Some(authority),request))
       }
     }.recover {
-      case _:uk.gov.hmrc.play.http.Upstream4xxResponse => Unauthorized(Json.toJson(ErrorUnauthorized))
+      case _:uk.gov.hmrc.http.Upstream4xxResponse => Unauthorized(Json.toJson(ErrorUnauthorized))
 
       case _:ForbiddenException =>
         Logger.error("Unauthorized! ForbiddenException caught and returning 403 status!")
@@ -97,8 +97,11 @@ class AccountAccessControl @Inject() (val auth: Auth) extends AccountAccessContr
 class AccountAccessControlWithHeaderCheck @Inject() (val accessControl: AccountAccessControl) extends AccountAccessControlWithHeaderCheckApi
 
 object AccountAccessControlSandbox extends AccountAccessControlApi {
-  val authConnector: AuthConnector = new AuthConnector("NO SERVICE", ConfidenceLevel.L0, new HttpGet {
-      override protected def doGet(url: String)(implicit hc: HeaderCarrier): Future[HttpResponse] = Future.failed(new IllegalArgumentException("Sandbox mode!"))
-      override val hooks: Seq[HttpHook] = NoneRequired
-    })
+  val authConnector: AuthConnector = new AuthConnector("NO SERVICE", ConfidenceLevel.L0, new CoreGet {
+    override def GET[A](url: String)(implicit rds: HttpReads[A], hc: HeaderCarrier, ec: ExecutionContext): Future[A] = sandboxMode
+
+    override def GET[A](url: String, queryParams: Seq[(String, String)])(implicit rds: HttpReads[A], hc: HeaderCarrier, ec: ExecutionContext): Future[A] = sandboxMode
+
+    private def sandboxMode = Future.failed(new IllegalArgumentException("Sandbox mode!"))
+  })
 }
