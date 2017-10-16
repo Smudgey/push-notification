@@ -22,8 +22,8 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import play.api.libs.json.{JsValue, Json}
 import uk.gov.hmrc.domain.{Nino, SaUtr}
+import uk.gov.hmrc.http._
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.http.ws.WSHttp
 import uk.gov.hmrc.play.test.UnitSpec
 
@@ -54,8 +54,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val authResponse = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, oid)))
       val oidResponse = HttpResponse(200, Some(idsJson(internalId, externalId)))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(authResponse))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(authResponse))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       val authority: Authority = await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
 
@@ -75,8 +75,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val authResponse = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, oid)))
       val oidResponse = HttpResponse(200, Some(Json.parse("""{ "foo": "bar" }""")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(authResponse))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(authResponse))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       try {
         await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
@@ -98,8 +98,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(response))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(response))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       try {
         await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
@@ -122,8 +122,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(response))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(response))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
     }
@@ -138,8 +138,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(response))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(response))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
 
@@ -154,8 +154,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(response))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(response))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       try {
         await(new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess())
@@ -183,8 +183,8 @@ class AuthConnectorSpec extends UnitSpec with MockitoSugar with ScalaFutures {
       val response = HttpResponse(200, Some(authorityJson(authorityConfidenceLevel, saUtr, nino, "ab12cd34")))
       val oidResponse = HttpResponse(200, Some(idsJson("foo", "bar")))
 
-      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(response))
-      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]](), any[HeaderCarrier]())).thenReturn(successful(oidResponse))
+      when(mockHttp.GET[HttpResponse](endsWith("/authority"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(response))
+      when(mockHttp.GET[HttpResponse](contains("/oid"))(any[HttpReads[HttpResponse]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(oidResponse))
 
       try {
         new AuthConnector(serviceUrl, serviceConfidenceLevel, mockHttp).grantAccess()

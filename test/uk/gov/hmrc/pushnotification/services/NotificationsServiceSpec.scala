@@ -23,8 +23,8 @@ import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
+import uk.gov.hmrc.http.{HttpException, ServiceUnavailableException}
 import uk.gov.hmrc.lock.LockRepository
-import uk.gov.hmrc.play.http.{HttpException, ServiceUnavailableException}
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Queued, Sent}

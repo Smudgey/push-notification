@@ -26,7 +26,7 @@ import play.api.http.HttpVerbs._
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
 import play.api.test.{FakeApplication, FakeRequest}
-import uk.gov.hmrc.play.http.ServiceUnavailableException
+import uk.gov.hmrc.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Sent}

@@ -16,7 +16,7 @@
 
 package uk.gov.hmrc.pushnotification.domain
 
-import uk.gov.hmrc.play.http.BadRequestException
+import uk.gov.hmrc.http.BadRequestException
 import uk.gov.hmrc.play.test.UnitSpec
 import uk.gov.hmrc.pushnotification.services.GUIDUtil
 
@@ -72,4 +72,3 @@ class TemplateSpec extends UnitSpec {
     }
   }
 }
-

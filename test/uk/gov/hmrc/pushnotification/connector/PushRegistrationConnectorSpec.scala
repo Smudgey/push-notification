@@ -20,7 +20,7 @@ import org.mockito.ArgumentMatchers.{any, matches}
 import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
-import uk.gov.hmrc.play.http._
+import uk.gov.hmrc.http.{HeaderCarrier, HttpReads, NotFoundException, Upstream5xxResponse}
 import uk.gov.hmrc.play.http.ws.WSHttp
 import uk.gov.hmrc.play.test.UnitSpec
 
@@ -43,9 +43,9 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
     val brokenId = "int-broken-id"
     val endpoints = Map[String, String]("end:point:a" -> "windows", "end:point:b" -> "android")
 
-    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Map[String, String]]](), any[HeaderCarrier]())).thenReturn(successful(endpoints))
-    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Map[String, String]]](), any[HeaderCarrier]())).thenReturn(failed(new NotFoundException("nothing for you here")))
-    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Map[String, String]]](), any[HeaderCarrier]())).thenReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)))
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(endpoints))
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(failed(new NotFoundException("nothing for you here")))
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)))
   }
 
   "PushRegistrationConnector endpointsForAuthId" should {

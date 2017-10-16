@@ -20,7 +20,7 @@ import java.util.UUID
 
 import play.api.libs.json.{JsSuccess, Json}
 import twirl.TwirlException
-import uk.gov.hmrc.play.http.{BadRequestException, InternalServerException}
+import uk.gov.hmrc.http.{BadRequestException, InternalServerException}
 
 case class Template(id: String, params: Map[String, String] = Map.empty) {
 

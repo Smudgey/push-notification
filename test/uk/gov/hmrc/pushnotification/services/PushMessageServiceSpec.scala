@@ -29,8 +29,8 @@ import org.scalatest.mockito.MockitoSugar
 import play.api.test.FakeApplication
 import reactivemongo.bson.BSONObjectID
 import uk.gov.hmrc.domain.Nino
+import uk.gov.hmrc.http._
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
-import uk.gov.hmrc.play.http._
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.Acknowledge

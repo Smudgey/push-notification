@@ -17,7 +17,7 @@
 package uk.gov.hmrc.pushnotification.services
 
 import org.scalatest.concurrent.ScalaFutures
-import uk.gov.hmrc.play.http.HttpException
+import uk.gov.hmrc.http.HttpException
 import uk.gov.hmrc.play.test.UnitSpec
 
 import scala.concurrent.Future

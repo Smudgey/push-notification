@@ -21,17 +21,17 @@ import javax.inject.{Inject, Named, Singleton}
 import com.google.inject.ImplementedBy
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.domain.Nino
+import uk.gov.hmrc.http.{CoreGet, ForbiddenException, HeaderCarrier}
 import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, HttpGet}
 
 import scala.concurrent.{ExecutionContext, Future}
 
 
-class NinoNotFoundOnAccount(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+class NinoNotFoundOnAccount(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
-class NoInternalId(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+class NoInternalId(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
-class AccountWithLowCL(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+class AccountWithLowCL(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
 case class Authority(nino: Nino, cl: ConfidenceLevel, authInternalId: String)
 
@@ -40,7 +40,7 @@ trait AuthConnectorApi {
 
   val serviceUrl: String
 
-  def http: HttpGet
+  def http: CoreGet
 
   def serviceConfidenceLevel: ConfidenceLevel
 
@@ -88,4 +88,4 @@ trait AuthConnectorApi {
 }
 
 @Singleton
-class AuthConnector @Inject() (@Named("authUrl") val serviceUrl: String, val serviceConfidenceLevel: ConfidenceLevel, val http: HttpGet) extends AuthConnectorApi
+class AuthConnector @Inject() (@Named("authUrl") val serviceUrl: String, val serviceConfidenceLevel: ConfidenceLevel, val http: CoreGet) extends AuthConnectorApi

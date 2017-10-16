@@ -21,8 +21,8 @@ import javax.inject.{Inject, Named, Singleton}
 import com.google.inject.ImplementedBy
 import org.joda.time.Duration
 import play.api.Logger
+import uk.gov.hmrc.http.ServiceUnavailableException
 import uk.gov.hmrc.lock.{LockKeeper, LockRepository}
-import uk.gov.hmrc.play.http.ServiceUnavailableException
 import uk.gov.hmrc.pushnotification.domain.{Notification, NotificationResult, NotificationStatus}
 import uk.gov.hmrc.pushnotification.repository.PushNotificationRepositoryApi
 

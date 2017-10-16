@@ -23,7 +23,7 @@ import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 import uk.gov.hmrc.api.controllers.HeaderValidator
-import uk.gov.hmrc.play.http.HeaderCarrier
+import uk.gov.hmrc.play.HeaderCarrierConverter
 import uk.gov.hmrc.play.microservice.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
@@ -47,7 +47,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
 
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
     implicit authenticated =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
+      implicit val hc = HeaderCarrierConverter.fromHeadersAndSession(authenticated.request.headers, None)
 
       authenticated.request.body.validate[Template].fold(
         errors => {
