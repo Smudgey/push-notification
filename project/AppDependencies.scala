@@ -64,7 +64,7 @@ object AppDependencies {
         "uk.gov.hmrc" %% "hmrctest" % hmrctestVersion % scope,
         "org.pegdown" % "pegdown" % pegdownVersion % scope,
         "com.github.tomakehurst" % "wiremock" % wireMockVersion % scope,
-        "org.mockito" % "mockito-all" % "1.9.5" % scope,
+        "org.mockito" % "mockito-core" % mockitoVersion % scope,
         "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.1" % scope
       )
     }.test
