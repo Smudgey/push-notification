@@ -19,8 +19,8 @@ package uk.gov.hmrc.pushnotification.services
 import java.util.UUID
 
 import org.mockito.ArgumentCaptor
-import org.mockito.ArgumentMatchers.{any, matches}
-import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers.{any, matches, eq => eqs}
+import org.mockito.Mockito.{times, verify, when}
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.concurrent.ScalaFutures
@@ -105,6 +105,11 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
       when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0))))
+    }
+
+    def latestCallbackForMessageIs(callback: Option[PushMessageCallbackPersist]) = {
+      when(mockCallbackRepository.findLatest(eqs(savedMessage.messageId)))
+        .thenReturn(successful(callback))
     }
 
     def callbackNotCreated() = {
@@ -285,6 +290,29 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe None
     }
   }
+
+  "PushMessageService getMessageStatus" should {
+    "return the status from the latest callback for a given messageId" in new Success {
+      latestCallbackForMessageIs(Some(PushMessageCallbackPersist(
+        id = BSONObjectID.generate,
+        messageId = savedMessage.messageId,
+        callbackUrl = "",
+        status = PushMessageStatus.Answer,
+        answer = Some("no"),
+        processingStatus = ProcessingStatus.Delivered,
+        attempts = 0
+      )))
+
+      await(service.getMessageStatus(savedMessage.messageId)) shouldBe Some(PushMessageStatus.Answer)
+    }
+
+    "return None when there is no callback for a given messageId" in new Success {
+      latestCallbackForMessageIs(None)
+
+      await(service.getMessageStatus(savedMessage.messageId)) shouldBe None
+    }
+  }
+
 }
 
 trait GUIDUtil {

@@ -271,5 +271,25 @@ class PushMessageControllerSpec extends UnitSpec with WithFakeApplication with S
     }
   }
 
+  "PushMessageController testOnlyGetMessageStatus" should {
+    "return status for a given messageId" in new Success {
+      when(mockService.getMessageStatus(any[String]())).thenReturn(Future(Some(PushMessageStatus.Acknowledge)))
+
+      val result: Result = await(controller.testOnlyGetMessageStatus(someMessageId)(emptyGetRequest))
+
+      status(result) shouldBe 200
+      jsonBodyOf(result) shouldBe Json.parse(
+        """"acknowledge"""")
+    }
+
+    "return 404 when no callback for the given messageId" in new Success {
+      when(mockService.getMessageStatus(any[String]())).thenReturn(Future(None))
+
+      val result: Result = await(controller.testOnlyGetMessageStatus(someMessageId)(emptyGetRequest))
+
+      status(result) shouldBe 404
+    }
+  }
+
 }
 
