@@ -13,7 +13,7 @@ object AppDependencies {
   private val scalaJVersion = "2.3.0"
   private val playHmrcApiVersion = "2.0.0"
   private val playReactiveMongo = "5.2.0"
-  private val circuitBreaker = "3.1.0"
+  private val circuitBreaker = "3.2.0"
   private val scalaTestVersion = "3.0.1"
   private val reactiveMongoTest = "3.0.0"
   private val pegdownVersion = "1.6.0"
