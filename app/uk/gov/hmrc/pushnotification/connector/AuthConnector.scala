@@ -22,7 +22,7 @@ import com.google.inject.ImplementedBy
 import play.api.libs.json.JsValue
 import uk.gov.hmrc.auth.core.ConfidenceLevel
 import uk.gov.hmrc.domain.Nino
-import uk.gov.hmrc.http.{ForbiddenException, HeaderCarrier, HttpGet}
+import uk.gov.hmrc.http.{CoreGet, ForbiddenException, HeaderCarrier}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -39,7 +39,7 @@ trait AuthConnectorApi {
 
   val serviceUrl: String
 
-  def http: HttpGet
+  def http: CoreGet
 
   def serviceConfidenceLevel: ConfidenceLevel
 
@@ -89,4 +89,4 @@ trait AuthConnectorApi {
 @Singleton
 class AuthConnector @Inject()(@Named("authUrl") val serviceUrl: String,
                               val serviceConfidenceLevel: ConfidenceLevel,
-                              val http: HttpGet) extends AuthConnectorApi
+                              val http: CoreGet) extends AuthConnectorApi

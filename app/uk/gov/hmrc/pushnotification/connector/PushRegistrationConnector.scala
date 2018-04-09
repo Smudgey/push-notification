@@ -27,7 +27,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait PushRegistrationConnectorApi {
   implicit val hc: HeaderCarrier = HeaderCarrier()
 
-  def http: HttpGet
+  def http: CoreGet
 
   def serviceUrl: String
 
@@ -42,4 +42,4 @@ trait PushRegistrationConnectorApi {
 
 @Singleton
 class PushRegistrationConnector @Inject()(@Named("pushRegistrationUrl") val serviceUrl: String,
-                                          val http: HttpGet) extends PushRegistrationConnectorApi
+                                          val http: CoreGet) extends PushRegistrationConnectorApi

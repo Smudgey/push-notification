@@ -19,12 +19,12 @@ package uk.gov.hmrc.pushnotification.services
 import org.joda.time.Duration
 import org.mockito.ArgumentMatchers
 import org.mockito.ArgumentMatchers.any
-import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import reactivemongo.bson.BSONObjectID
+import uk.gov.hmrc.http._
 import uk.gov.hmrc.lock.LockRepository
-import uk.gov.hmrc.http.{HttpException, ServiceUnavailableException}
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Queued, Sent}
@@ -34,6 +34,7 @@ import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotific
 import scala.concurrent.Future.{failed, successful}
 
 class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeApplication with StubApplicationConfiguration {
+
   private trait Setup extends MockitoSugar {
     val notificationRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
     val lockRepository: LockRepository = mock[LockRepository]
@@ -49,30 +50,30 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     val someNotificationId = "msg-id-1"
     val otherNotificationId = "msg-id-2"
 
-    val somePersisted = NotificationPersist(BSONObjectID.generate, someNotificationId, Some(someMessageId), someAuthId, someEndpoint, someContent,someOs , Sent, 1)
+    val somePersisted = NotificationPersist(BSONObjectID.generate, someNotificationId, Some(someMessageId), someAuthId, someEndpoint, someContent, someOs, Sent, 1)
     val otherPersisted = NotificationPersist(BSONObjectID.generate, otherNotificationId, Some(someMessageId), someAuthId, otherEndpoint, someContent, someOs, Sent, 2)
 
     val updates = Map(someNotificationId -> Delivered, otherNotificationId -> Queued)
   }
 
   private trait LockOK extends Setup {
-    doReturn(successful(true), Nil: _* ).when(lockRepository).lock(any[String](), any[String](), any[Duration]())
-    doReturn(successful({}), Nil: _* ).when(lockRepository).releaseLock(any[String](), any[String]())
+    when(lockRepository.lock(any[String](), any[String](), any[Duration]())).thenReturn(successful(true))
+    when(lockRepository.releaseLock(any[String](), any[String]())).thenReturn(successful({}))
   }
 
   private trait Success extends LockOK {
-    doReturn(successful(Seq(somePersisted, otherPersisted)), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
-    doReturn(successful(Some(5)), Nil: _* ).when(notificationRepository).permanentlyFail()
-    doReturn(successful(Seq(otherPersisted, somePersisted)), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
-    doReturn(successful(Right(somePersisted)), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(someNotificationId, Delivered)))
-    doReturn(successful(Left("KABOOM!")), Nil: _* ).when(notificationRepository).update(ArgumentMatchers.eq(NotificationResult(otherNotificationId, Queued)))
+    when(notificationRepository.getQueuedNotifications(any[Int]())).thenReturn(successful(Seq(somePersisted, otherPersisted)))
+    when(notificationRepository.permanentlyFail()).thenReturn(successful(Some(5)))
+    when(notificationRepository.getTimedOutNotifications(any[Long](), any[Int]())).thenReturn(successful(Seq(otherPersisted, somePersisted)))
+    when(notificationRepository.update(ArgumentMatchers.eq(NotificationResult(someNotificationId, Delivered)))).thenReturn(successful(Right(somePersisted)))
+    when(notificationRepository.update(ArgumentMatchers.eq(NotificationResult(otherNotificationId, Queued)))).thenReturn(successful(Left("KABOOM!")))
   }
 
   private trait Failed extends LockOK {
-    doReturn(successful(None), Nil: _* ).when(notificationRepository).permanentlyFail()
-    doReturn(failed(new Exception("KAPOW!")), Nil: _* ).when(notificationRepository).getQueuedNotifications(any[Int]())
-    doReturn(failed(new Exception("SPLAT!")), Nil: _* ).when(notificationRepository).getTimedOutNotifications(any[Long](), any[Int]())
-    doReturn(failed(new Exception("CRASH!")), Nil: _* ).when(notificationRepository).update(any[NotificationResult]())
+    when(notificationRepository.permanentlyFail()).thenReturn(successful(None))
+    when(notificationRepository.getQueuedNotifications(any[Int]())).thenReturn(failed(new Exception("KAPOW!")))
+    when(notificationRepository.getTimedOutNotifications(any[Long](), any[Int]())).thenReturn(failed(new Exception("SPLAT!")))
+    when(notificationRepository.update(any[NotificationResult]())).thenReturn(failed(new Exception("CRASH!")))
   }
 
   "NotificationsService getQueuedNotifications" should {
@@ -87,7 +88,7 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     }
 
     "throw a service unavailable exception given an issue with the repository" in new Failed {
-      val result = intercept[ServiceUnavailableException]{
+      val result = intercept[ServiceUnavailableException] {
         await(service.getQueuedNotifications)
       }
 
@@ -107,7 +108,7 @@ class NotificationsServiceSpec extends UnitSpec with ScalaFutures with WithFakeA
     }
 
     "throw a service unavailable exception given an issue with the repository" in new Failed {
-      val result = intercept[ServiceUnavailableException]{
+      val result = intercept[ServiceUnavailableException] {
         await(service.getTimedOutNotifications)
       }
 

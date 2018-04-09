@@ -13,11 +13,10 @@ The following endpoints are exposed by this service:
 |--------|----|----|
 | ```/push-notification/messages``` | POST | Create a new message, to be sent to one or more devices. [More...](docs/send.md)  |
 | ```/push-notification/messages/:id/status``` | POST | Respond to a message. [More...](docs/respond.md)  |
-| ```//push-notification/notifications/unsent``` | GET | Retrieve queued notifications. [More...](docs/queued.md) |
-| ```//push-notification/notifications/status``` | POST | Update the status of notifications. [More...](docs/update.md) |
-| ```//push-notification/messages/:id``` | POST | Retrieve message associated with Id and update state to answer. [More...](docs/getmessage.md) |
+| ```/push-notification/notifications/unsent``` | GET | Retrieve queued notifications. [More...](docs/queued.md) |
+| ```/push-notification/notifications/status``` | POST | Update the status of notifications. [More...](docs/update.md) |
+| ```/push-notification/messages/:id``` | GET | Retrieve message associated with Id. [More...](docs/getmessage.md) |
 
 ### License
 
 This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").
-    

@@ -20,9 +20,10 @@ import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.{Format, Json}
-import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.api.indexes.{Index, IndexType}
-import reactivemongo.bson.{BSONArray, BSONDocument, BSONDateTime, BSONObjectID}
+import reactivemongo.api.{DB, ReadPreference}
+import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
+import reactivemongo.play.json.ImplicitBSONHandlers._
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.PushMessage

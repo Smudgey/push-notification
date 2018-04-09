@@ -19,8 +19,8 @@ package uk.gov.hmrc.pushnotification.services
 import java.util.UUID
 
 import org.mockito.ArgumentCaptor
-import org.mockito.ArgumentMatchers.{any, matches}
-import org.mockito.Mockito.{doAnswer, doReturn, times, verify}
+import org.mockito.ArgumentMatchers.{any, matches, eq => eqs}
+import org.mockito.Mockito.{times, verify, when}
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.concurrent.ScalaFutures
@@ -39,7 +39,6 @@ import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.Acknowledge
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository.ProcessingStatus.Queued
 import uk.gov.hmrc.pushnotification.repository._
-import org.mockito.Mockito._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future.{failed, successful}
@@ -70,7 +69,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     val someTemplateId = "NGC_002"
     val someCallbackUrl = "http://callback.url"
-    val someParams = Map("fullName" -> "Clark Kent", "agent" -> "James 007 Bond", "callbackUrl" -> "http://callback.url")
+    val someParams = Map("name" -> "Clark Kent", "device" -> "Snorble 3", "time" -> "09:12", "location" -> "Metropolis", "callbackUrl" -> "http://callback.url")
 
     val endpointsWithOs = Map("foo" -> "windows", "bar" -> "android", "baz" -> "ios")
     val someTemplate = Template(someTemplateId, someParams)
@@ -81,73 +80,72 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     val someResponses = Map("yes" -> "Yes", "no" -> "No")
     val someUrl = "http://over.yonder/call/back"
 
-    val somePushMessage = PushMessage(someSubject, someBody, someUrl, someResponses, someMessageId )
+    val somePushMessage = PushMessage(someSubject, someBody, someUrl, someResponses, someMessageId)
     val savedMessage = PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someUrl)
 
     when(mockConfiguration.getString("appName")).thenReturn(Some("push-notification"))
   }
 
   private trait Success extends Setup {
-    doReturn(successful(endpointsWithOs), Nil: _*).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
-    doReturn(failed(new NotFoundException("No endpoints")), Nil: _*).when(mockConnector).endpointsForAuthId(matches(otherAuth.authInternalId))(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
-    doAnswer(new Answer[Future[Either[String, NotificationPersist]]] {
+    when(mockConnector.endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())).thenReturn(successful(endpointsWithOs))
+    when(mockConnector.endpointsForAuthId(matches(otherAuth.authInternalId))(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())).thenReturn(failed(new NotFoundException("No endpoints")))
+    when(mockNotificationRepository.save(matches(someAuth.authInternalId), any[Notification]())).thenAnswer(new Answer[Future[Either[String, NotificationPersist]]] {
       override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, NotificationPersist]] = {
         val actualAuthId: String = invocationOnMock.getArguments()(0).asInstanceOf[String]
         val actualNotification: Notification = invocationOnMock.getArguments()(1).asInstanceOf[Notification]
 
         successful(Right(NotificationPersist(BSONObjectID.generate, actualNotification.endpoint + "-ntfy-id", actualNotification.messageId, actualAuthId, actualNotification.endpoint, actualNotification.content, actualNotification.os, actualNotification.status, 1)))
       }
-    }).when(mockNotificationRepository).save(matches(someAuth.authInternalId), any[Notification]())
+    })
 
-    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId), any[Option[String]]())
-    doAnswer(new Answer[Future[Either[String, PushMessagePersist]]] {
-      override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, PushMessagePersist]] = {
-        successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl)))
-      }
-    }).when(mockMessageRepository).save(matches(someAuth.authInternalId), any[PushMessage]())
-    doAnswer(new Answer[Future[Either[String, PushMessagePersist]]] {
-      override def answer(invocationOnMock: InvocationOnMock): Future[Either[String, PushMessagePersist]] = {
-        successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl)))
-      }
-    }).when(mockMessageRepository).save(matches(otherAuth.authInternalId), any[PushMessage]())
-    doReturn(successful(Right(true)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    when(mockMessageRepository.find(matches(someMessageId), any[Option[String]]())).thenReturn(successful(Some(savedMessage)))
+    when(mockMessageRepository.save(matches(someAuth.authInternalId), any[PushMessage]())).thenReturn(
+      successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl)))
+    )
+    when(mockMessageRepository.save(matches(otherAuth.authInternalId), any[PushMessage]())).thenReturn(
+      successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl)))
+    )
+    when(mockCallbackRepository.save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())).thenReturn(successful(Right(true)))
 
-    doAnswer(new Answer[Future[Seq[PushMessagePersist]]] {
-      override def answer(invocationOnMock: InvocationOnMock): Future[Seq[PushMessagePersist]] = {
-        successful(Seq(savedMessage))
-      }
-    }).when(mockMessageRepository).findByAuthority(matches(someAuth.authInternalId))
+    when(mockMessageRepository.findByAuthority(matches(someAuth.authInternalId))).thenReturn(successful(Seq(savedMessage)))
 
 
     def latestMessageIsOfStatus(status: PushMessageStatus) = {
-      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0)))
-      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
+      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(Some(PushMessageCallbackPersist(BSONObjectID.generate, savedMessage.messageId, someUrl, status, someAnswer, Queued, 0))))
     }
 
-    def primeFindForMessageAndAuthId(messageId:String, authId:String, response:Option[PushMessagePersist]) = {
-      doAnswer(new Answer[Future[Option[PushMessagePersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[Option[PushMessagePersist]] = successful(response)
-      }).when(mockMessageRepository).find(messageId, Some(authId))
+    def latestCallbackForMessageIs(callback: Option[PushMessageCallbackPersist]) = {
+      when(mockCallbackRepository.findLatest(eqs(savedMessage.messageId)))
+        .thenReturn(successful(callback))
     }
 
+    def callbackNotCreated() = {
+      when(mockCallbackRepository.findLatest(savedMessage.messageId)).thenReturn(successful(None))
+    }
+
+    def primeFindForMessageAndAuthId(messageId: String, authId: String, response: Option[PushMessagePersist]) = {
+      when(mockMessageRepository.find(messageId, Some(authId))).thenReturn(successful(response))
+    }
   }
 
   private trait Duplicate extends Setup {
-    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId), any[Option[String]]())
-    doReturn(successful(Right(true)), Nil: _*).doReturn(successful(Right(false)), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    when(mockMessageRepository.find(matches(someMessageId), any[Option[String]]())).thenReturn(successful(Some(savedMessage)))
+    when(mockCallbackRepository.save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]()))
+      .thenReturn(
+        successful(Right(true)),
+        successful(Right(false)))
   }
 
   private trait Invalid extends Setup {
-    doReturn(successful(None), Nil: _*).when(mockMessageRepository).find(matches(someMessageId), any[Option[String]]())
+    when(mockMessageRepository.find(matches(someMessageId), any[Option[String]]())).thenReturn(successful(None))
   }
 
   private trait Failed extends Setup {
-    doReturn(successful(endpointsWithOs), Nil: _*).when(mockConnector).endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())
-    doReturn(successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl))), Nil: _*).when(mockMessageRepository).save(any[String], any[PushMessage])
-    doReturn(successful(Some(savedMessage)), Nil: _*).when(mockMessageRepository).find(matches(someMessageId), any[Option[String]]())
-    doReturn(successful(Left("Failed to save the thing")), Nil: _*).when(mockNotificationRepository).save(matches(brokenAuth.authInternalId), any[Notification]())
-    doReturn(successful(Left("Failed to save the thing")), Nil: _*).when(mockCallbackRepository).save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())
+    when(mockConnector.endpointsForAuthId(any[String]())(any[HttpReads[Map[String, String]]](), any[ExecutionContext]())).thenReturn(successful(endpointsWithOs))
+    when(mockMessageRepository.save(any[String], any[PushMessage])).thenReturn(successful(Right(PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someCallbackUrl))))
+    when(mockMessageRepository.find(matches(someMessageId), any[Option[String]]())).thenReturn(successful(Some(savedMessage)))
+    when(mockNotificationRepository.save(matches(brokenAuth.authInternalId), any[Notification]())).thenReturn(successful(Left("Failed to save the thing")))
+    when(mockCallbackRepository.save(any[String](), any[String](), any[PushMessageStatus](), any[Option[String]](), any[Int]())).thenReturn(successful(Left("Failed to save the thing")))
   }
 
   "PushMessageService sendTemplateMessage" should {
@@ -210,7 +208,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-      val (result, maybeMessage): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, Acknowledge, None))
+      val result: Boolean = await(service.respondToMessage(someMessageId, Acknowledge, None))
 
       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
@@ -220,13 +218,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       answerCaptor.getValue shouldBe None
       attemptCaptor.getValue shouldBe 0
 
-      val message = maybeMessage.getOrElse(fail("should have returned message details"))
-
-      message.messageId shouldBe someMessageId
-      message.callbackUrl shouldBe someUrl
-      message.subject shouldBe someSubject
-      message.body shouldBe someBody
-      message.responses shouldBe someResponses
+      result shouldBe true
     }
 
     "save the answer with the callback url and return true given a valid message id and answer" in new Success {
@@ -236,7 +228,7 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
       val answerCaptor: ArgumentCaptor[Option[String]] = ArgumentCaptor.forClass(classOf[Option[String]])
       val attemptCaptor: ArgumentCaptor[Int] = ArgumentCaptor.forClass(classOf[Int])
 
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
+      val result: Boolean = await(service.respondToMessage(someMessageId, PushMessageStatus.Answer, Some("yes")))
 
       verify(mockCallbackRepository).save(idCaptor.capture(), urlCaptor.capture(), statusCaptor.capture(), answerCaptor.capture(), attemptCaptor.capture())
 
@@ -250,19 +242,21 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "not save anything and return true given a valid message id and duplicate status" in new Duplicate {
-      val (initial, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      val initial: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
       initial shouldBe true
 
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      val result: Boolean = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
 
       result shouldBe false
     }
 
-    "return false given an invalid message id" in new Invalid {
-      val (result, _): (Boolean, Option[PushMessage]) = await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+    "throw a not found exception given an invalid message id" in new Invalid {
+      val result = intercept[NotFoundException] {
+        await(service.respondToMessage(someMessageId, someStatus, someAnswer))
+      }
 
-      result shouldBe false
+      result.getMessage shouldBe s"message with id [$someMessageId] not found"
     }
 
     "throw a bad request exception given an invalid answer" in new Success {
@@ -282,45 +276,14 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
   }
 
-  "PushMessageService getCurrentMessages" should {
-    Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
-      s"return $status messages for a given authId" in new Success {
-        latestMessageIsOfStatus(status)
-
-        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq(savedMessage.messageId)
-      }
-    }
-
-    PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
-      s"not return $status messages for a given authId" in new Success {
-        latestMessageIsOfStatus(status)
-
-        await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
-      }
-    }
-
-    "not return messages if no latest callback" in new Success {
-      doAnswer(new Answer[Future[List[PushMessageCallbackPersist]]] {
-        override def answer(invocationOnMock: InvocationOnMock): Future[List[PushMessageCallbackPersist]] = successful(List.empty)
-      }).when(mockCallbackRepository).findLatest(List(savedMessage.messageId))
-
-      await(service.getCurrentMessages(someAuth.authInternalId)).map(_.messageId) shouldBe Seq.empty
-    }
-  }
-
   "PushMessageService getMessageFromMessageId" should {
-    Seq(Acknowledge, PushMessageStatus.Answer).foreach { status =>
-      s"return $status messages for a given authId" in new Success {
-
-        primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))
-        latestMessageIsOfStatus(status)
-
-        await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe Some(somePushMessage)
-
-      }
+    "return message for a given authId if no callback document has been created" in new Success {
+      primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))
+      callbackNotCreated()
+      await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe Some(somePushMessage)
     }
 
-    PushMessageStatus.statuses.filterNot(Seq(Acknowledge, PushMessageStatus.Answer).contains).foreach { status =>
+    PushMessageStatus.statuses.foreach { status =>
       s"not return $status message for a given authId" in new Success {
         primeFindForMessageAndAuthId(savedMessage.messageId, "authId", Some(savedMessage))
         latestMessageIsOfStatus(status)
@@ -330,14 +293,37 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
     }
 
     "return none when the message cannot be resolved" in new Success {
-
       primeFindForMessageAndAuthId(savedMessage.messageId, "authId", None)
       await(service.getMessageFromMessageId(savedMessage.messageId, "authId")) shouldBe None
     }
   }
+
+  "PushMessageService getMessageStatus" should {
+    "return the status from the latest callback for a given messageId" in new Success {
+      latestCallbackForMessageIs(Some(PushMessageCallbackPersist(
+        id = BSONObjectID.generate,
+        messageId = savedMessage.messageId,
+        callbackUrl = "",
+        status = PushMessageStatus.Answer,
+        answer = Some("no"),
+        processingStatus = ProcessingStatus.Delivered,
+        attempts = 0
+      )))
+
+      await(service.getMessageStatus(savedMessage.messageId)) shouldBe Some(PushMessageStatus.Answer)
+    }
+
+    "return None when there is no callback for a given messageId" in new Success {
+      latestCallbackForMessageIs(None)
+
+      await(service.getMessageStatus(savedMessage.messageId)) shouldBe None
+    }
+  }
+
 }
 
 trait GUIDUtil {
+
   class GUIDMatcher extends Matcher[String] {
     def apply(maybeGuid: String): MatchResult = {
       val result = try {

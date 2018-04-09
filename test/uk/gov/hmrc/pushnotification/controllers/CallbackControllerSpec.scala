@@ -126,11 +126,11 @@ class CallbackControllerSpec  extends UnitSpec with WithFakeApplication with Sca
       jsonBodyOf(result) shouldBe Json.parse("""{"code":"NOT_FOUND","message":"No callbacks found"}""")
     }
 
-    "return Service Unavailable (503) when it is not possible to obtain the mongo lock" in new LockFailed {
+    "return CONFLICT (409) when it is not possible to obtain the mongo lock" in new LockFailed {
       val result: Result = await(controller.getUndeliveredCallbacks()(emptyRequest))
 
-      status(result) shouldBe 503
-      jsonBodyOf(result) shouldBe Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
+      status(result) shouldBe 409
+      jsonBodyOf(result) shouldBe Json.parse("""{"code":"CONFLICT","message":"Failed to obtain lock"}""")
 
     }
 

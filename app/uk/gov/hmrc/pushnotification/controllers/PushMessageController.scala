@@ -39,9 +39,9 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
 
   def respondToMessage(id: String, journeyId: Option[String] = None): Action[JsValue]
 
-  def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
+  def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[AnyContent]
 
-  def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[JsValue]
+  def testOnlyGetMessageStatus(messageId: String): Action[AnyContent]
 }
 
 @Singleton
@@ -76,12 +76,12 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         response => {
           if (id == response.messageId) {
             val status = response.answer.map(_ => Answer).getOrElse(Acknowledge)
-            errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { case (result: Boolean, maybeMessage: Option[PushMessage]) =>
+            errorWrapper(service.respondToMessage(response.messageId, status, response.answer).map { result =>
               if (result) {
-                maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
+                Ok(Json.obj())
               } else {
                 Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
-                maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
+                Accepted(Json.obj())
               }
             })
           } else {
@@ -92,32 +92,24 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
       )
   }
 
-  override def getCurrentMessages(journeyId: Option[String]): Action[JsValue] =
-    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+  override def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[AnyContent] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async {
       implicit request =>
         errorWrapper {
           def getAuthId = request.authority.fold(throw new Exception("no auth!")) { auth => auth.authInternalId }
 
-          service.getCurrentMessages(getAuthId)
-            .map(PushMessageResponse.apply)
-            .map(message => Ok(Json.toJson(message)))
+          service.getMessageFromMessageId(messageId, getAuthId).map {
+            _.fold(NotFound("Message Id unknown!")) { found => Ok(Json.toJson(found)) }
+          }
         }
     }
 
-  override def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[JsValue] =
-    accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
+  override def testOnlyGetMessageStatus(messageId: String): Action[AnyContent] =
+    accessControl.validateAccept(acceptHeaderValidationRules).async {
       implicit request =>
-
         errorWrapper {
-          def getAuthId = request.authority.fold(throw new Exception("no auth!")) { auth => auth.authInternalId }
-
-          val maybeMessages: Future[Option[PushMessage]] = for (
-            message <- service.getMessageFromMessageId(messageId, getAuthId);
-            _ <- service.respondToMessage(messageId, Acknowledge, None)
-          ) yield message
-
-          maybeMessages.map {
-            _.fold(NotFound("Message Id unknown!")) { found => Ok(Json.toJson(found)) }
+          service.getMessageStatus(messageId).map {
+            _.fold(NotFound(s"No callback found for message ID [$messageId]")) { found => Ok(Json.toJson(found)) }
           }
         }
     }

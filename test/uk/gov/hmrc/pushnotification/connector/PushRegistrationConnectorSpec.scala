@@ -17,7 +17,7 @@
 package uk.gov.hmrc.pushnotification.connector
 
 import org.mockito.ArgumentMatchers.{any, matches}
-import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import uk.gov.hmrc.http._
@@ -42,11 +42,11 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
     val someId = "int-some-id"
     val otherId = "int-other-id"
     val brokenId = "int-broken-id"
-    val endpoints = Map("end:point:a" -> "windows", "end:point:b" -> "android")
+    val endpoints = Map[String, String]("end:point:a" -> "windows", "end:point:b" -> "android")
 
-    doReturn(successful(endpoints), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
-    doReturn(failed(new NotFoundException("nothing for you here")), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
-    doReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(successful(endpoints))
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(failed(new NotFoundException("nothing for you here")))
+    when(mockHttp.GET[Map[String, String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Map[String, String]]], any[HeaderCarrier], any[ExecutionContext])).thenReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)))
   }
 
   "PushRegistrationConnector endpointsForAuthId" should {

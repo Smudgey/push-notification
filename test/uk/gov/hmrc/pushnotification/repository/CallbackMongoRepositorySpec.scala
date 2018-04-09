@@ -112,34 +112,23 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       saved.count(_.isRight) shouldBe 5
 
-      val someResult: List[PushMessageCallbackPersist] = await(repository.findLatest(List(someMessageId)))
+      val someResult: Option[PushMessageCallbackPersist] = await(repository.findLatest(someMessageId))
 
-      val someActual: PushMessageCallbackPersist = someResult.headOption.getOrElse(fail("should have found a callback status"))
+      val someActual: PushMessageCallbackPersist = someResult.getOrElse(fail("should have found a callback status"))
 
       someActual.messageId shouldBe someMessageId
       someActual.callbackUrl shouldBe someUrl
       someActual.status shouldBe PushMessageStatus.Answer
       someActual.answer shouldBe None
 
-      val otherResult: List[PushMessageCallbackPersist] = await(repository.findLatest(List(otherMessageId)))
+      val otherResult: Option[PushMessageCallbackPersist] = await(repository.findLatest(otherMessageId))
 
-      val otherActual: PushMessageCallbackPersist = otherResult.headOption.getOrElse(fail("should have found a callback status"))
+      val otherActual: PushMessageCallbackPersist = otherResult.getOrElse(fail("should have found a callback status"))
 
       otherActual.messageId shouldBe otherMessageId
       otherActual.callbackUrl shouldBe otherUrl
       otherActual.status shouldBe PermanentlyFailed
       otherActual.answer shouldBe someAnswer
-    }
-
-    "find the latest for multiple message ids" in new Setup {
-      val saved: Seq[Either[String, Boolean]] =
-        Seq(
-          await(repository.save(someMessageId, someUrl, Acknowledge, None)),
-          await(repository.save(otherMessageId, otherUrl, Acknowledge, None))
-        )
-
-      val results: List[PushMessageCallbackPersist] = await(repository.findLatest(List(someMessageId, otherMessageId, "UNKOWN_MESSAGE_ID")))
-      results.map(_.messageId) shouldBe List(someMessageId, otherMessageId)
     }
 
     "not find a status given a non-existent message id" in new Setup {
@@ -152,9 +141,8 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
 
       saved.count(_.isRight) shouldBe 3
 
-      val result: List[PushMessageCallbackPersist] = await(repository.findLatest(List("does-not-exist-message-id")))
-
-      result shouldBe empty
+      val result: Option[PushMessageCallbackPersist] = await(repository.findLatest("does-not-exist-message-id"))
+      result shouldBe None
     }
 
     "find a callback with a specific messageId and status" in new Setup {
@@ -178,7 +166,7 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       actual.answer shouldBe otherAnswer
     }
 
-    "find undelivered callbacks that have not exceeded the maximum number of attempts, and increase the number of attempts" in new Setup {
+    "find undelivered callbacks (oldest first) that have not exceeded the maximum number of attempts, and increase the number of attempts" in new Setup {
       val initialState: Seq[Either[String, Boolean]] =
         Seq(
           await(repository.save(someMessageId, someUrl, Acknowledge, None, 1)),
@@ -195,6 +183,9 @@ class CallbackMongoRepositorySpec extends UnitSpec with MongoSpecSupport with Be
       val first: Seq[PushMessageCallbackPersist] = await(repository.findUndelivered(maxRows))
 
       first.size shouldBe 5 // because 2 will have exceeded maximum retry attempts
+
+      first.head.status shouldBe Acknowledge
+      first(4).status shouldBe Timeout
 
       first.count(_.attempts == 1) shouldBe 0
       first.count(_.attempts == 2) shouldBe 1

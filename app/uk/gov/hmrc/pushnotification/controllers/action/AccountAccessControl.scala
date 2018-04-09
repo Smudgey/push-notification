@@ -24,13 +24,12 @@ import play.api.libs.json.Json
 import play.api.mvc._
 import uk.gov.hmrc.api.controllers.{ErrorAcceptHeaderInvalid, ErrorUnauthorized, ErrorUnauthorizedLowCL, HeaderValidator}
 import uk.gov.hmrc.auth.core.ConfidenceLevel
-import uk.gov.hmrc.http.hooks.HttpHook
-import uk.gov.hmrc.http.{ForbiddenException, HeaderCarrier, HttpGet, HttpResponse}
+import uk.gov.hmrc.http.{Request => _, _}
 import uk.gov.hmrc.play.HeaderCarrierConverter
 import uk.gov.hmrc.pushnotification.connector._
 import uk.gov.hmrc.pushnotification.controllers.{ErrorNoInternalId, ErrorUnauthorizedNoNino, ForbiddenAccess}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 case class AuthenticatedRequest[A](authority: Option[Authority], request: Request[A]) extends WrappedRequest(request)
 
@@ -99,11 +98,11 @@ class AccountAccessControlWithHeaderCheck @Inject()(val accessControl: AccountAc
 
 @Singleton
 class AccountAccessControlSandbox @Inject()(configuration: Option[Config]) extends AccountAccessControlApi {
-  val authConnector: AuthConnector = new AuthConnector("NO SERVICE", ConfidenceLevel.L0, new HttpGet {
-    override def doGet(url: String)(implicit hc: HeaderCarrier): Future[HttpResponse] = Future.failed(new IllegalArgumentException("Sandbox mode!"))
+  val authConnector: AuthConnector = new AuthConnector("NO SERVICE", ConfidenceLevel.L0, new CoreGet {
+    override def GET[A](url: String)(implicit rds: HttpReads[A], hc: HeaderCarrier, ec: ExecutionContext): Future[A] = sandboxMode
 
-    override val hooks: Seq[HttpHook] = NoneRequired
+    override def GET[A](url: String, queryParams: Seq[(String, String)])(implicit rds: HttpReads[A], hc: HeaderCarrier, ec: ExecutionContext): Future[A] = sandboxMode
 
-    override def configuration: Option[Config] = configuration
+    private def sandboxMode = Future.failed(new IllegalArgumentException("Sandbox mode!"))
   })
 }

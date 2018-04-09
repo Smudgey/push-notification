@@ -35,7 +35,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait NotificationsControllerApi extends BaseController with ErrorHandling {
   val NoNotifications: JsValue = Json.parse("""{"code":"NOT_FOUND","message":"No notifications found"}""")
 
-  val LockFailed: JsValue = Json.parse("""{"code":"SERVICE_UNAVAILABLE","message":"Failed to obtain lock"}""")
+  val LockFailed: JsValue = Json.parse("""{"code":"CONFLICT","message":"Failed to obtain lock"}""")
 
   def getQueuedNotifications: Action[AnyContent]
 
@@ -80,7 +80,8 @@ class NotificationsController @Inject()(service: NotificationsServiceApi) extend
         result.map { notifications =>
           if (notifications.isEmpty) NotFound(NoNotifications)
           else Ok(Json.toJson(notifications))
-        }.getOrElse(ServiceUnavailable(LockFailed))
+
+        }.getOrElse(Conflict(LockFailed))
       })
   }
 }

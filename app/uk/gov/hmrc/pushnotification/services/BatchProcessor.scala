@@ -19,8 +19,8 @@ package uk.gov.hmrc.pushnotification.services
 import play.api.Logger
 import uk.gov.hmrc.http.HttpException
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 trait BatchProcessor {
   val maxConcurrent: Int
@@ -32,12 +32,12 @@ trait BatchProcessor {
     ) yield results
 
     Future.sequence(batchResultsItr.toSeq)
-      .map{ (v: Seq[Boolean]) => v.foldLeft(true)(_ && _) }
+      .map { (v: Seq[Boolean]) => v.foldLeft(true)(_ && _) }
   }
 
   private def processGroup[T](group: Seq[T], update: (T) => Future[Either[String, Any]]): Seq[Future[Boolean]] = {
-    group.map{ t =>
-      update(t).map{
+    group.map { t =>
+      update(t).map {
         case Right(_) =>
           true
         case Left(msg) =>

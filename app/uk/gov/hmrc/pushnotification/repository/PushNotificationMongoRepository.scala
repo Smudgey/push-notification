@@ -25,6 +25,7 @@ import reactivemongo.api.indexes.{Index, IndexType}
 import reactivemongo.api.{DB, ReadPreference}
 import reactivemongo.bson.{BSONArray, BSONDateTime, BSONDocument, BSONObjectID}
 import reactivemongo.core.errors.ReactiveMongoException
+import reactivemongo.play.json.ImplicitBSONHandlers._
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
 import uk.gov.hmrc.mongo.{AtomicUpdate, BSONBuilderHelpers, ReactiveRepository}
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{PermanentlyFailed, delivered, failed, queued, sent}
@@ -65,7 +66,9 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
         collection.indexesManager.ensure(
           Index(Seq("endpoint" -> IndexType.Ascending), name = Some("endpointNotUnique"), unique = false)),
         collection.indexesManager.ensure(
-          Index(Seq("status" -> IndexType.Ascending), name = Some("statusNotUnique"), unique = false))
+          Index(Seq("status" -> IndexType.Ascending), name = Some("statusNotUnique"), unique = false)),
+        collection.indexesManager.ensure(
+          Index(Seq("created" -> IndexType.Ascending), name = Some("createdNotUnique"), unique = false))
       )
     )
   }
@@ -112,7 +115,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
           BSONDocument("attempts" -> BSONDocument("$lt" -> maxAttempts))
         )
       )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 
@@ -129,7 +132,7 @@ class PushNotificationMongoRepository @Inject() (mongo: DB, @Named("sendNotifica
           BSONDocument("updated" -> BSONDocument("$lt" -> BSONDateTime(DateTimeUtils.now.getMillis - timeoutMilliseconds)))
         )
       )).
-        sort(Json.obj("created" -> JsNumber(-1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
+        sort(Json.obj("created" -> JsNumber(1))).cursor[NotificationPersist](ReadPreference.primaryPreferred).
         collect[List](maxBatchSize)
     }
 

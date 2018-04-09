@@ -16,19 +16,17 @@
 
 package uk.gov.hmrc.pushnotification.services
 
-import javax.inject.{Inject, Named, Singleton}
+import javax.inject.{Inject, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.Configuration
 import uk.gov.hmrc.api.service.Auditor
-import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
+import uk.gov.hmrc.http._
 import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
-import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
-import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
+import uk.gov.hmrc.pushnotification.domain._
 import uk.gov.hmrc.pushnotification.repository._
 
-import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -38,11 +36,11 @@ trait PushMessageServiceApi extends Auditor {
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
-  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])]
-
-  def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
+  def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean]
 
   def getMessageFromMessageId(messageId: String, authId: String): Future[Option[PushMessage]]
+
+  def getMessageStatus(messageId: String): Future[Option[PushMessageStatus]]
 }
 
 @Singleton
@@ -72,10 +70,10 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector,
 
     def findCallback(message: Option[PushMessage]): Future[Option[PushMessage]] = {
       val notFound: Option[PushMessage] = None
-      message.fold(Future.successful(notFound)) { found =>
-        callbackRepository.findLatest(List(messageId)).map {
-          case (callback :: _) if Seq(Acknowledge, Answer).contains(callback.status) => message
-          case _ => None
+      message.fold(Future.successful(notFound)) { found ⇒
+        callbackRepository.findLatest(messageId).map {
+          case Some(_) ⇒ None
+          case None ⇒ message
         }
       }
     }
@@ -87,7 +85,7 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector,
     ) yield result
   }
 
-  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[(Boolean, Option[PushMessage])] = {
+  override def respondToMessage(messageId: String, status: PushMessageStatus, answer: Option[String]): Future[Boolean] = {
     for (
       message: Option[PushMessage] <- messageRepository.find(messageId, None).map(_.map(pm =>
         PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
@@ -99,9 +97,12 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector,
           case Right(result) => result
           case Left(error) => throw new ServiceUnavailableException(error)
         }
-      }.getOrElse(Future(false))
-    ) yield (saved, message)
+      }.getOrElse(throw new NotFoundException(s"message with id [$messageId] not found"))
+    ) yield saved
   }
+
+  def getMessageStatus(messageId: String): Future[Option[PushMessageStatus]] =
+    callbackRepository.findLatest(messageId).map(_.map(_.status))
 
   // todo: check if sequence is required?
   private def createNotifications(authId: String, endpoints: Map[String, String], message: String, messageId: Option[String]): Future[Seq[String]] = {
@@ -121,21 +122,5 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector,
         case Left(error) => throw new Exception(error)
       }
     }
-  }
-
-  override def getCurrentMessages(authId: String): Future[Seq[PushMessage]] = {
-    getMessagesByAuthority(authId)
-  }
-
-  private def getMessagesByAuthority(authId: String): Future[Seq[PushMessage]] = {
-    for {
-      messages <- messageRepository.findByAuthority(authId)
-      callbackMessagesPairs: immutable.Seq[(PushMessageCallbackPersist, PushMessagePersist)] <- callbackRepository.findLatest(messages.map(_.messageId).toList).map(_.zip(messages))
-    } yield
-      callbackMessagesPairs.flatMap {
-        case (PushMessageCallbackPersist(_, _, _, status, _, _, _), message) if Seq(Acknowledge, Answer).contains(status) =>
-          Some(PushMessage(message.subject, message.body, message.callbackUrl, message.responses, message.messageId))
-        case _ => None
-      }
   }
 }

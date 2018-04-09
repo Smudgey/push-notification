@@ -26,7 +26,7 @@ import play.api.{Configuration, Environment}
 import play.modules.reactivemongo.ReactiveMongoComponent
 import reactivemongo.api.DB
 import uk.gov.hmrc.auth.core.ConfidenceLevel
-import uk.gov.hmrc.http.HttpGet
+import uk.gov.hmrc.http.CoreGet
 import uk.gov.hmrc.lock.{LockMongoRepository, LockRepository}
 import uk.gov.hmrc.play.audit.model.Audit
 import uk.gov.hmrc.play.bootstrap.http.HttpClient
@@ -38,7 +38,7 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
   override protected lazy val runModeConfiguration: Configuration = configuration
 
   override def configure(): Unit = {
-    bind(classOf[HttpGet]).to(classOf[WSHttpImpl])
+    bind(classOf[CoreGet]).to(classOf[WSHttpImpl])
     bind(classOf[HttpClient]).to(classOf[WSHttpImpl])
     bind(classOf[Audit]).to(classOf[MicroserviceAudit])
     bind(classOf[DB]).toProvider(classOf[MongoDbProvider])
@@ -61,6 +61,7 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
   private object AppNameProvider extends Provider[String] {
     def get(): String = AppName(configuration).appName
   }
+
 }
 
 class MongoDbProvider @Inject()(reactiveMongoComponent: ReactiveMongoComponent) extends Provider[DB] {
