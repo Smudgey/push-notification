@@ -38,7 +38,7 @@ resolvers ++= Seq(
       Resolver.jcenterRepo
 )
 
-resourceGenerators in Compile <+= Def.task {
+resourceGenerators in Compile += Def.task {
   val commitMfFile = target.value / "metadata.mf"
   val gitMetaData = gitInfo.map{s => {
     val value = if (s._1 == "Git-Describe") s._2.substring(1) else s._2

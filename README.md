@@ -5,6 +5,8 @@
 
 The Push Notification service enables the delivery of push notifications to the HMRC mobile application.
 
+This service runs on port 8246.
+
 ### API
 
 The following endpoints are exposed by this service:

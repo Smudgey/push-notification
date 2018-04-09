@@ -38,7 +38,7 @@
 //  * 2b, For all of the endpoints defined in the definition.json a documentation.xml needs to be provided and be available under api/documentation/[version]/[endpoint name] GET endpoint
 //  *     Example: api/documentation/1.0/Fetch-Some-Data
 //  *
-//  * See: https://confluence.tools.tax.service.gov.uk/display/ApiPlatform/API+Platform+Architecture+with+Flows
+//  * See: confluence /display/ApiPlatform/API+Platform+Architecture+with+Flows
 //  */
 // class PlatformIntegrationSpec extends UnitSpec with MockitoSugar with ScalaFutures with WiremockServiceLocatorSugar with BeforeAndAfter {
 
