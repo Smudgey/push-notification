@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,13 @@
 
 package uk.gov.hmrc.pushnotification.services
 
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
+import play.api.Configuration
 import uk.gov.hmrc.api.service.Auditor
-import uk.gov.hmrc.play.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
-import uk.gov.hmrc.pushnotification.config.MicroserviceAuditConnector
+import uk.gov.hmrc.http.{BadRequestException, HeaderCarrier, ServiceUnavailableException, UnauthorizedException}
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
@@ -33,7 +34,7 @@ import scala.concurrent.Future
 
 @ImplementedBy(classOf[PushMessageService])
 trait PushMessageServiceApi extends Auditor {
-  override val auditConnector = MicroserviceAuditConnector
+  override val auditConnector: AuditConnector
 
   def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]]
 
@@ -41,11 +42,16 @@ trait PushMessageServiceApi extends Auditor {
 
   def getCurrentMessages(authId: String): Future[Seq[PushMessage]]
 
-  def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]]
+  def getMessageFromMessageId(messageId: String, authId: String): Future[Option[PushMessage]]
 }
 
 @Singleton
-class PushMessageService @Inject()(connector: PushRegistrationConnector, notificationRepository: PushNotificationRepositoryApi, messageRepository: PushMessageRepositoryApi, callbackRepository: CallbackRepositoryApi) extends PushMessageServiceApi {
+class PushMessageService @Inject()(connector: PushRegistrationConnector,
+                                   notificationRepository: PushNotificationRepositoryApi,
+                                   messageRepository: PushMessageRepositoryApi,
+                                   val appNameConfiguration: Configuration,
+                                   val auditConnector: AuditConnector,
+                                   callbackRepository: CallbackRepositoryApi) extends PushMessageServiceApi {
 
   override def sendTemplateMessage(template: Template)(implicit hc: HeaderCarrier, authority: Option[Authority]): Future[Option[String]] = {
     withAudit("sendTemplateMessage", Map.empty) {
@@ -62,10 +68,10 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     }
   }
 
-  override def getMessageFromMessageId(messageId: String, authId:String): Future[Option[PushMessage]] = {
+  override def getMessageFromMessageId(messageId: String, authId: String): Future[Option[PushMessage]] = {
 
-    def findCallback(message:Option[PushMessage]): Future[Option[PushMessage]] = {
-      val notFound:Option[PushMessage] = None
+    def findCallback(message: Option[PushMessage]): Future[Option[PushMessage]] = {
+      val notFound: Option[PushMessage] = None
       message.fold(Future.successful(notFound)) { found =>
         callbackRepository.findLatest(List(messageId)).map {
           case (callback :: _) if Seq(Acknowledge, Answer).contains(callback.status) => message
@@ -76,7 +82,7 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
 
     for (
       message <- messageRepository.find(messageId, Some(authId)).map(_.map(pm =>
-                    PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
+        PushMessage(pm.subject, pm.body, pm.callbackUrl, pm.responses, pm.messageId)));
       result <- findCallback(message)
     ) yield result
   }
@@ -108,12 +114,12 @@ class PushMessageService @Inject()(connector: PushRegistrationConnector, notific
     } toSeq)
   }
 
-  private def persistPushMessage(pushMessage: Option[PushMessage], authId: String) : Future[Option[String]] =  {
+  private def persistPushMessage(pushMessage: Option[PushMessage], authId: String): Future[Option[String]] = {
     pushMessage.fold(Future[Option[String]](None)) { pm =>
-       messageRepository.save(authId, pm).map {
-          case Right(persist) => Option(persist.messageId)
-          case Left(error) => throw new Exception(error)
-       }
+      messageRepository.save(authId, pm).map {
+        case Right(persist) => Option(persist.messageId)
+        case Left(error) => throw new Exception(error)
+      }
     }
   }
 

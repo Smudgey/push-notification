@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 package uk.gov.hmrc.pushnotification.binder
 
-import uk.gov.hmrc.domain.Nino
 import play.api.mvc.PathBindable
+import uk.gov.hmrc.domain.Nino
 
 object Binders {
 
@@ -26,10 +26,8 @@ object Binders {
     def unbind(key: String, nino: Nino): String = stringBinder.unbind(key, nino.value)
 
     def bind(key: String, value: String): Either[String, Nino] = {
-      Nino.isValid(value) match {
-        case true => Right(Nino(value))
-        case false => Left("ERROR_NINO_INVALID")
-      }
+      if (Nino.isValid(value)) Right(Nino(value))
+      else Left("ERROR_NINO_INVALID")
     }
   }
 }

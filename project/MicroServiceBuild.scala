@@ -21,38 +21,31 @@ private object AppDependencies {
   import play.sbt.PlayImport._
   import play.core.PlayVersion
 
-  private val microserviceBootstrapVersion = "5.14.0"
-  private val playAuthVersion = "4.3.0"
-  private val playHealthVersion = "2.1.0"
-  private val logbackJsonLoggerVersion = "3.1.0"
-  private val playUrlBindersVersion = "2.1.0"
-  private val playConfigVersion = "4.3.0"
-  private val playUI = "7.2.0"
-  private val domainVersion = "4.1.0"
+  private val bootstrapPlay25Version = "1.5.0"
+  private val authClientVersion = "2.6.0"
+  private val domainVersion = "5.1.0"
+  private val circuitBreaker = "3.2.0"
+  private val playHmrcApiVersion = "2.1.0"
+  private val playReactiveMongo = "6.2.0"
+  private val mongoLockVersion = "5.1.0"
+
+  private val hmrcTestVersion = "3.0.0"
   private val scalaJVersion = "2.3.0"
-  private val playHmrcApiVersion = "1.4.0"
-  private val playReactiveMongo = "5.2.0"
-  private val circuitBreaker = "3.0.0"
   private val scalaTestVersion = "3.0.1"
-  private val reactiveMongoTest = "2.0.0"
   private val pegdownVersion = "1.6.0"
-  private val wireMockVersion = "2.3.1"
-  private val hmrcTestVersion = "2.2.0"
-  private val cucumberVersion = "1.2.5"
   private val mockitoVersion = "2.7.14"
-  private val mongoLockVersion = "4.1.0"
+  private val wireMockVersion = "2.3.1"
+  private val cucumberVersion = "1.2.5"
+  private val reactiveMongoTest = "3.1.0"
+  private val mockitoAllVersion = "1.9.5"
+  private val scalatestPlusVersion = "1.5.1"
 
   val compile = Seq(
     ws,
-    "uk.gov.hmrc" %% "microservice-bootstrap" % microserviceBootstrapVersion,
-    "uk.gov.hmrc" %% "play-authorisation" % playAuthVersion,
-    "uk.gov.hmrc" %% "play-health" % playHealthVersion,
-    "uk.gov.hmrc" %% "play-url-binders" % playUrlBindersVersion,
-    "uk.gov.hmrc" %% "play-config" % playConfigVersion,
-    "uk.gov.hmrc" %% "logback-json-logger" % logbackJsonLoggerVersion,
+    "uk.gov.hmrc" %% "bootstrap-play-25" % bootstrapPlay25Version,
+    "uk.gov.hmrc" %% "auth-client" % authClientVersion,
     "uk.gov.hmrc" %% "domain" % domainVersion,
     "uk.gov.hmrc" %% "reactive-circuit-breaker" % circuitBreaker,
-    "uk.gov.hmrc" %% "play-ui" %  playUI,
     "uk.gov.hmrc" %% "play-hmrc-api" % playHmrcApiVersion,
     "uk.gov.hmrc" %% "play-reactivemongo" % playReactiveMongo,
     "uk.gov.hmrc" %% "mongo-lock" % mongoLockVersion
@@ -86,11 +79,8 @@ private object AppDependencies {
 
       override lazy val test = Seq(
         "com.typesafe.play" %% "play-test" % PlayVersion.current % scope,
-        "uk.gov.hmrc" %% "hmrctest" % hmrcTestVersion % scope,
-        "org.pegdown" % "pegdown" % pegdownVersion % scope,
-        "com.github.tomakehurst" % "wiremock" % wireMockVersion % scope,
-        "org.mockito" % "mockito-all" % "1.9.5" % scope,
-        "org.scalatestplus.play" %% "scalatestplus-play" % "1.5.1" % scope
+        "org.mockito" % "mockito-all" % mockitoAllVersion % scope,
+        "org.scalatestplus.play" %% "scalatestplus-play" % scalatestPlusVersion % scope
       )
     }.test
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
 
 package uk.gov.hmrc.pushnotification.controllers
 
+import play.api.mvc.Result
 import uk.gov.hmrc.api.controllers.ErrorResponse
-import uk.gov.hmrc.play.http.BadRequestException
-import uk.gov.hmrc.play.microservice.controller.BaseController
+import uk.gov.hmrc.http.BadRequestException
+import uk.gov.hmrc.play.bootstrap.controller.BaseController
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -31,22 +32,22 @@ case object ForbiddenAccess extends ErrorResponse(403, "UNAUTHORIZED", "Access d
 case class BadRequestError(e: BadRequestException) extends ErrorResponse(400, "BAD REQUEST", e.getMessage)
 
 trait ErrorHandling {
-  self:BaseController =>
+  self: BaseController =>
 
   import play.api.libs.json.Json
   import play.api.{Logger, mvc}
   import uk.gov.hmrc.api.controllers.{ErrorInternalServerError, ErrorNotFound, ErrorUnauthorizedLowCL}
-  import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, NotFoundException, UnauthorizedException}
+  import uk.gov.hmrc.http.{ForbiddenException, HeaderCarrier, NotFoundException, UnauthorizedException}
 
-  implicit val ec : ExecutionContext
+  implicit val ec: ExecutionContext
 
-  def errorWrapper(func: => Future[mvc.Result])(implicit hc:HeaderCarrier) = {
+  def errorWrapper(func: => Future[mvc.Result])(implicit hc: HeaderCarrier): Future[Result] = {
     func.recover {
-      case _:NotFoundException => Status(ErrorNotFound.httpStatusCode)(Json.toJson(ErrorNotFound))
+      case _: NotFoundException => Status(ErrorNotFound.httpStatusCode)(Json.toJson(ErrorNotFound))
 
-      case _:UnauthorizedException => Unauthorized(Json.toJson(ErrorUnauthorizedNoNino))
+      case _: UnauthorizedException => Unauthorized(Json.toJson(ErrorUnauthorizedNoNino))
 
-      case _:ForbiddenException => Unauthorized(Json.toJson(ErrorUnauthorizedLowCL))
+      case _: ForbiddenException => Unauthorized(Json.toJson(ErrorUnauthorizedLowCL))
 
       case e: BadRequestException => BadRequest(Json.toJson(BadRequestError(e)))
 

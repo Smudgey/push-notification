@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,17 +26,20 @@ import org.mockito.stubbing.Answer
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.mockito.MockitoSugar
+import play.api.Configuration
 import play.api.test.FakeApplication
 import reactivemongo.bson.BSONObjectID
+import uk.gov.hmrc.auth.core.ConfidenceLevel.L200
 import uk.gov.hmrc.domain.Nino
-import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel.L200
-import uk.gov.hmrc.play.http._
+import uk.gov.hmrc.http._
+import uk.gov.hmrc.play.audit.http.connector.AuditConnector
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.{Authority, PushRegistrationConnector, StubApplicationConfiguration}
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.Acknowledge
 import uk.gov.hmrc.pushnotification.domain.{Notification, PushMessage, PushMessageStatus, Template}
 import uk.gov.hmrc.pushnotification.repository.ProcessingStatus.Queued
 import uk.gov.hmrc.pushnotification.repository._
+import org.mockito.Mockito._
 
 import scala.collection.JavaConversions._
 import scala.concurrent.Future.{failed, successful}
@@ -49,12 +52,15 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
   implicit val ec: ExecutionContext = ExecutionContext.global
 
   private trait Setup extends MockitoSugar {
-    val mockConnector = mock[PushRegistrationConnector]
-    val mockNotificationRepository = mock[PushNotificationRepositoryApi]
-    val mockMessageRepository = mock[PushMessageRepositoryApi]
-    val mockCallbackRepository = mock[CallbackRepositoryApi]
+    val mockConnector: PushRegistrationConnector = mock[PushRegistrationConnector]
+    val mockNotificationRepository: PushNotificationRepositoryApi = mock[PushNotificationRepositoryApi]
+    val mockMessageRepository: PushMessageRepositoryApi = mock[PushMessageRepositoryApi]
+    val mockCallbackRepository: CallbackRepositoryApi = mock[CallbackRepositoryApi]
+    val mockConfiguration: Configuration = mock[Configuration]
+    val mockAuditConnector: AuditConnector = mock[AuditConnector]
 
-    val service = new PushMessageService(mockConnector, mockNotificationRepository, mockMessageRepository, mockCallbackRepository)
+    val service = new PushMessageService(mockConnector, mockNotificationRepository,
+      mockMessageRepository, mockConfiguration, mockAuditConnector, mockCallbackRepository)
 
     val someAuth = Authority(Nino("CS700100A"), L200, "int-auth-id-1")
     val otherAuth = Authority(Nino("CS700101A"), L200, "int-auth-id-2")
@@ -77,6 +83,8 @@ class PushMessageServiceSpec extends UnitSpec with ScalaFutures with WithFakeApp
 
     val somePushMessage = PushMessage(someSubject, someBody, someUrl, someResponses, someMessageId )
     val savedMessage = PushMessagePersist(BSONObjectID.generate, someAuth.authInternalId, someMessageId, someSubject, someBody, someResponses, someUrl)
+
+    when(mockConfiguration.getString("appName")).thenReturn(Some("push-notification"))
   }
 
   private trait Success extends Setup {

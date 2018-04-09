@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@ import org.mockito.ArgumentMatchers.{any, matches}
 import org.mockito.Mockito.doReturn
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
-import uk.gov.hmrc.play.http._
+import uk.gov.hmrc.http._
 import uk.gov.hmrc.play.http.ws.WSHttp
 import uk.gov.hmrc.play.test.UnitSpec
+import uk.gov.hmrc.pushnotification.config.WSHttpImpl
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,7 +35,7 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
   implicit val ec: ExecutionContext = ExecutionContext.global
 
   private trait Setup extends MockitoSugar {
-    val mockHttp: WSHttp = mock[WSHttp]
+    val mockHttp: WSHttpImpl = mock[WSHttpImpl]
 
     val connector = new PushRegistrationConnector("http://somewhere:1234", mockHttp)
 
@@ -43,9 +44,9 @@ class PushRegistrationConnectorSpec extends UnitSpec with ScalaFutures {
     val brokenId = "int-broken-id"
     val endpoints = Map("end:point:a" -> "windows", "end:point:b" -> "android")
 
-    doReturn(successful(endpoints), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier]())
-    doReturn(failed(new NotFoundException("nothing for you here")), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier]())
-    doReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier]())
+    doReturn(successful(endpoints), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$someId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
+    doReturn(failed(new NotFoundException("nothing for you here")), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$otherId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
+    doReturn(failed(Upstream5xxResponse("BOOOOM!", 500, 500)), Nil: _*).when(mockHttp).GET[Seq[String]](matches(s"${connector.serviceUrl}/push/endpoint/$brokenId"))(any[HttpReads[Seq[String]]](), any[HeaderCarrier], any[ExecutionContext]())
   }
 
   "PushRegistrationConnector endpointsForAuthId" should {

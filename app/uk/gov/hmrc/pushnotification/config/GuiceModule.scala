@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,16 +19,18 @@ package uk.gov.hmrc.pushnotification.config
 import javax.inject.{Inject, Provider}
 
 import com.google.inject.AbstractModule
+import com.google.inject.name.Names
 import com.google.inject.name.Names.named
 import play.api.Mode.Mode
 import play.api.{Configuration, Environment}
 import play.modules.reactivemongo.ReactiveMongoComponent
 import reactivemongo.api.DB
+import uk.gov.hmrc.auth.core.ConfidenceLevel
+import uk.gov.hmrc.http.HttpGet
 import uk.gov.hmrc.lock.{LockMongoRepository, LockRepository}
-import uk.gov.hmrc.play.audit.http.connector.AuditConnector
-import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.config.ServicesConfig
-import uk.gov.hmrc.play.http.HttpGet
+import uk.gov.hmrc.play.audit.model.Audit
+import uk.gov.hmrc.play.bootstrap.http.HttpClient
+import uk.gov.hmrc.play.config.{AppName, ServicesConfig}
 
 class GuiceModule(environment: Environment, configuration: Configuration) extends AbstractModule with ServicesConfig {
 
@@ -36,10 +38,13 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
   override protected lazy val runModeConfiguration: Configuration = configuration
 
   override def configure(): Unit = {
-    bind(classOf[HttpGet]).to(classOf[WSHttp])
-    bind(classOf[AuditConnector]).to(classOf[MicroserviceAuditConnector])
+    bind(classOf[HttpGet]).to(classOf[WSHttpImpl])
+    bind(classOf[HttpClient]).to(classOf[WSHttpImpl])
+    bind(classOf[Audit]).to(classOf[MicroserviceAudit])
     bind(classOf[DB]).toProvider(classOf[MongoDbProvider])
     bind(classOf[LockRepository]).toProvider(classOf[LockRepositoryProvider])
+
+    bind(classOf[String]).annotatedWith(Names.named("appName")).toProvider(AppNameProvider)
 
     bind(classOf[String]).annotatedWith(named("pushRegistrationUrl")).toInstance(baseUrl("push-registration"))
     bind(classOf[String]).annotatedWith(named("authUrl")).toInstance(baseUrl("auth"))
@@ -49,14 +54,19 @@ class GuiceModule(environment: Environment, configuration: Configuration) extend
     bind(classOf[Long]).annotatedWith(named("unsentNotificationsTimeout")).toInstance(configuration.getInt("unsentNotificationsTimeoutSeconds").getOrElse(180) * 1000L)
 
     bind(classOf[ConfidenceLevel]).toInstance(ConfidenceLevel.fromInt(configuration.getInt("controllers.confidenceLevel")
-      .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level"))))
+      .getOrElse(throw new RuntimeException("The service has not been configured with a confidence level")))
+      .getOrElse(throw new RuntimeException("Confidence level could not be retrieved")))
+  }
+
+  private object AppNameProvider extends Provider[String] {
+    def get(): String = AppName(configuration).appName
   }
 }
 
-class MongoDbProvider @Inject() (reactiveMongoComponent: ReactiveMongoComponent) extends Provider[DB] {
+class MongoDbProvider @Inject()(reactiveMongoComponent: ReactiveMongoComponent) extends Provider[DB] {
   def get = reactiveMongoComponent.mongoConnector.db()
 }
 
-class LockRepositoryProvider @Inject() (mongo: DB) extends Provider[LockRepository] {
+class LockRepositoryProvider @Inject()(mongo: DB) extends Provider[LockRepository] {
   def get = LockMongoRepository(() => mongo)
 }

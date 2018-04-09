@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,18 +20,17 @@ import javax.inject.{Inject, Named, Singleton}
 
 import com.google.inject.ImplementedBy
 import play.api.libs.json.JsValue
+import uk.gov.hmrc.auth.core.ConfidenceLevel
 import uk.gov.hmrc.domain.Nino
-import uk.gov.hmrc.play.auth.microservice.connectors.ConfidenceLevel
-import uk.gov.hmrc.play.http.{ForbiddenException, HeaderCarrier, HttpGet}
+import uk.gov.hmrc.http.{ForbiddenException, HeaderCarrier, HttpGet}
 
 import scala.concurrent.{ExecutionContext, Future}
 
+class NinoNotFoundOnAccount(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
-class NinoNotFoundOnAccount(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+class NoInternalId(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
-class NoInternalId(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
-
-class AccountWithLowCL(message: String) extends uk.gov.hmrc.play.http.HttpException(message, 401)
+class AccountWithLowCL(message: String) extends uk.gov.hmrc.http.HttpException(message, 401)
 
 case class Authority(nino: Nino, cl: ConfidenceLevel, authInternalId: String)
 
@@ -62,7 +61,7 @@ trait AuthConnectorApi {
         if ((json \ "accounts" \ "paye" \ "nino").asOpt[String].isEmpty)
           throw new NinoNotFoundOnAccount("The user must have a National Insurance Number")
 
-        (Nino(nino.get), ConfidenceLevel.fromInt(cl), ids)
+        (Nino(nino.get), ConfidenceLevel.fromInt(cl).getOrElse(ConfidenceLevel.L0), ids)
       }
     }
 
@@ -88,4 +87,6 @@ trait AuthConnectorApi {
 }
 
 @Singleton
-class AuthConnector @Inject() (@Named("authUrl") val serviceUrl: String, val serviceConfidenceLevel: ConfidenceLevel, val http: HttpGet) extends AuthConnectorApi
+class AuthConnector @Inject()(@Named("authUrl") val serviceUrl: String,
+                              val serviceConfidenceLevel: ConfidenceLevel,
+                              val http: HttpGet) extends AuthConnectorApi

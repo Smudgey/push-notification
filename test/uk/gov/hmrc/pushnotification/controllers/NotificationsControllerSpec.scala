@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import play.api.http.HttpVerbs._
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc.Result
 import play.api.test.{FakeApplication, FakeRequest}
-import uk.gov.hmrc.play.http.ServiceUnavailableException
+import uk.gov.hmrc.http.ServiceUnavailableException
 import uk.gov.hmrc.play.test.{UnitSpec, WithFakeApplication}
 import uk.gov.hmrc.pushnotification.connector.StubApplicationConfiguration
 import uk.gov.hmrc.pushnotification.domain.NotificationStatus.{Delivered, Disabled, Sent}
@@ -187,4 +187,3 @@ class NotificationsControllerSpec extends UnitSpec with WithFakeApplication with
     }
   }
 }
-

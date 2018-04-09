@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,9 @@ import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 import uk.gov.hmrc.api.controllers.HeaderValidator
-import uk.gov.hmrc.play.http.HeaderCarrier
-import uk.gov.hmrc.play.microservice.controller.BaseController
+import uk.gov.hmrc.http.HeaderCarrier
+import uk.gov.hmrc.play.HeaderCarrierConverter
+import uk.gov.hmrc.play.bootstrap.controller.BaseController
 import uk.gov.hmrc.pushnotification.controllers.action.AccountAccessControlWithHeaderCheck
 import uk.gov.hmrc.pushnotification.domain.PushMessageStatus.{Acknowledge, Answer}
 import uk.gov.hmrc.pushnotification.domain._
@@ -40,7 +41,7 @@ trait PushMessageControllerApi extends BaseController with HeaderValidator with 
 
   def getCurrentMessages(journeyId: Option[String] = None): Action[JsValue]
 
-  def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[JsValue]
+  def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[JsValue]
 }
 
 @Singleton
@@ -49,7 +50,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
 
   def sendTemplateMessage(journeyId: Option[String] = None): Action[JsValue] = accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
     implicit authenticated =>
-      implicit val hc = HeaderCarrier.fromHeadersAndSession(authenticated.request.headers, None)
+      implicit val hc: HeaderCarrier = HeaderCarrierConverter.fromHeadersAndSession(authenticated.request.headers, None)
 
       authenticated.request.body.validate[Template].fold(
         errors => {
@@ -79,7 +80,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
               if (result) {
                 maybeMessage.fold[Result](Ok)(message => Ok(Json.toJson(message)))
               } else {
-                Logger.info(s"Response for messageId=[${ response.messageId }] with status=[$status], answer=[${ response.answer.getOrElse("") }] was previously processed")
+                Logger.info(s"Response for messageId=[${response.messageId}] with status=[$status], answer=[${response.answer.getOrElse("")}] was previously processed")
                 maybeMessage.fold[Result](Accepted)(message => Accepted(Json.toJson(message)))
               }
             })
@@ -95,7 +96,7 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
     accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
       implicit request =>
         errorWrapper {
-          def getAuthId = request.authority.fold(throw new Exception("no auth!")){auth => auth.authInternalId}
+          def getAuthId = request.authority.fold(throw new Exception("no auth!")) { auth => auth.authInternalId }
 
           service.getCurrentMessages(getAuthId)
             .map(PushMessageResponse.apply)
@@ -103,12 +104,13 @@ class PushMessageController @Inject()(service: PushMessageServiceApi, accessCont
         }
     }
 
-  override def getMessageFromMessageId(messageId:String, journeyId: Option[String]): Action[JsValue] =
+  override def getMessageFromMessageId(messageId: String, journeyId: Option[String]): Action[JsValue] =
     accessControl.validateAccept(acceptHeaderValidationRules).async(BodyParsers.parse.json) {
       implicit request =>
 
         errorWrapper {
-          def getAuthId = request.authority.fold(throw new Exception("no auth!")){auth => auth.authInternalId}
+          def getAuthId = request.authority.fold(throw new Exception("no auth!")) { auth => auth.authInternalId }
+
           val maybeMessages: Future[Option[PushMessage]] = for (
             message <- service.getMessageFromMessageId(messageId, getAuthId);
             _ <- service.respondToMessage(messageId, Acknowledge, None)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 HM Revenue & Customs
+ * Copyright 2018 HM Revenue & Customs
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 package uk.gov.hmrc.pushnotification.controllers
 
-import javax.inject.{Singleton, Inject}
+import javax.inject.{Inject, Singleton}
 
 import play.api.libs.json.Json
 import play.api.mvc.Action
 import uk.gov.hmrc.mongo.json.ReactiveMongoFormats
-import uk.gov.hmrc.pushnotification.repository.{PushNotificationMongoRepositoryTest, NotificationPersist}
-import uk.gov.hmrc.play.microservice.controller.BaseController
+import uk.gov.hmrc.play.bootstrap.controller.BaseController
+import uk.gov.hmrc.pushnotification.repository.{NotificationPersist, PushNotificationMongoRepositoryTest}
 
 import scala.concurrent.ExecutionContext
 
@@ -36,15 +36,14 @@ class TestOnlyController @Inject()(notificationRepository: PushNotificationMongo
     notificationRepository.removeAllRecords().map(_ => Ok)
   }
 
-  def findByInternalId(internalId:String) = Action.async {
+  def findByInternalId(internalId: String) = Action.async {
     notificationRepository.findByInternalId(internalId).map(res => Ok(Json.toJson(res)))
   }
 
-  def findByEndpoint(token:String, internalId:String) = Action.async {
+  def findByEndpoint(token: String, internalId: String) = Action.async {
     implicit val oidFormat = ReactiveMongoFormats.objectIdFormats
     implicit val format = Json.format[NotificationPersist]
 
     notificationRepository.findByEndpoint(s"default-platform-arn/stubbed/default-platform-arn/$token", internalId).map(res => Ok(Json.toJson(res)))
   }
 }
-
